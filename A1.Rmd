@@ -239,4 +239,27 @@ cv_mat
 
 ```
 
+# Complexity and performance of RMSE
+
+```{r graph-complexity}
+
+m_comp <- c()
+models <- c('reg1', 'reg2', 'reg3', 'reg4')
+for(i in 1 : length(cv)){
+  m_comp[ i ] <- length(get(models[i])$coefficient  - 1) 
+}
+
+m_comp <- tibble(model = models, 
+                  complexity = m_comp,
+                  RMSE = rmse_cv)
+
+ggplot(m_comp, aes(x = complexity, y = RMSE)) +
+  geom_point(color='red',size=2) +
+  geom_line(color='blue',size=0.5)+
+  labs(x='Number of explanatory variables',y='Averaged RMSE on test samples',
+       title='Prediction performance and model compexity') +
+  theme_bw()
+
+
+```
 
