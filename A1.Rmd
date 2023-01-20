@@ -48,7 +48,111 @@ cps <- cps %>% mutate(sample=ifelse(occ2012==2600,1,
                                               ifelse(cps$occ2012>=4000 & cps$occ2012<=4150,2,0)))
 
 cps <- cps %>% filter(sample==1 | sample==2)
+
+glimpse(cps)
 ```
 
+# Create variables 
+
+I generate the target variable and re-specify some predictors 
+
+```{r variables}
+
+# Earnings per hour (level and log), female, and age squared
+cps <- cps %>% mutate(earnhours=earnwke/uhours, 
+                      lnw=log(earnhours+1), # to avoid negative values
+                      female=as.numeric(sex==2),
+                      agesq=age^2
+)
+
+# Race 
+cps <- cps %>% mutate(white=as.numeric(race==1),
+                      afram = as.numeric(race==2),
+                      asian = as.numeric(race==4),
+                      hisp = ifelse(!is.na(ethnic),1,0),
+                      othernonw = as.numeric(white==0 & afram==0 & asian==0 & hisp==0),
+                      nonUSborn = as.numeric(prcitshp=="Foreign Born, US Cit By Naturalization" | prcitshp=="Foreign Born, Not a US Citizen") 
+)
+
+# Education
+cps <- cps %>% mutate(ed_lessBA=as.numeric(grade92<43),
+                      ed_BA=as.numeric(grade92==43),
+                      ed_MA=as.numeric(grade92==44),
+                      ed_Profess = as.numeric(grade92==45),
+                      ed_PhD = as.numeric(grade92==46)
+)
+
+# Marital status and children
+cps <- cps %>% mutate(married = as.numeric(marital==1 | marital==2),
+                      divorced = as.numeric(marital==3 | marital==5 | marital==6),
+                      wirowed = as.numeric(marital==4),
+                      nevermar = as.numeric(marital==7),
+                      
+                      child0 = as.numeric(chldpres==0),
+                      child1 = as.numeric(chldpres==1),
+                      child2 = as.numeric(chldpres==2),
+                      child3 = as.numeric(chldpres==3),
+                      child4pl = as.numeric(chldpres>=4)
+)
+
+# Work-related variables
+cps <- cps %>% mutate(fedgov = as.numeric(class=="Government - Federal"),
+                      stagov = as.numeric(class=="Government - State"),
+                      locgov = as.numeric(class=="Government - Local"),
+                      nonprof = as.numeric(class=="Private, Nonprofit"),
+                      ind2dig = as.integer(as.numeric(as.factor(ind02))/100),
+                      occ2dig = as.integer(occ2012/100),
+                      union = as.numeric(unionmme=="Yes" | unioncov=="Yes")
+)
+
+```
+
+# Data summary
+
+I look at some summary statistics for earnings per hour and predictors. I retain only values of earnings per hour equal or above 1$.
+
+```{r datasummary}
+
+cps %>% dplyr::select(earnwke,uhours,earnhours) %>% summary()
+
+cps %>% filter(earnhours>=1) %>% dplyr::select(earnwke,uhours,earnhours) %>% summary()
+
+cps <- cps %>% filter(earnhours>=1)
+
+datasummary(earnhours + lnw + female + age + white + afram + asian + hisp + othernonw + nonUSborn + ed_lessBA + ed_BA + ed_MA + ed_Profess + ed_PhD + married + divorced + wirowed + nevermar + child0 + child1 + child2 + child3 + child4pl + fedgov + stagov + locgov + nonprof + ind2dig + occ2dig + union ~
+               Mean + Median + Min + Max + P25 + P75 + N, data = cps)
+
+```
+
+# Graphical anaylsis of earnings per hour
+
+```{r graphs}
+
+# for the entire sample 
+ggplot(data=cps, aes(x=earnhours)) +
+  geom_histogram(aes(y = (after_stat(count))/sum(after_stat(count))), binwidth = 1, boundary=0,
+                 fill = 'navyblue', color = 'white', size = 0.25, alpha = 0.8,  show.legend=F, na.rm=TRUE) +
+  coord_cartesian(xlim = c(0, 280)) +
+  labs(x = 'Earnings per hour',y = 'Percent')+
+  theme_bw() +
+  expand_limits(x = 0.01, y = 0.01) +
+  scale_y_continuous(expand = c(0.01,0.01),labels = scales::percent_format(accuracy = 1)) +
+  scale_x_continuous(expand = c(0.01,0.01),breaks = seq(0,280, 40))
+
+# Should the extreme values be excluded?
+
+# looking closer to those earnings per hour below 70
+ggplot(data=cps, aes(x=earnhours)) +
+  geom_histogram(aes(y = (..count..)/sum(..count..)), binwidth = 1, boundary=0,
+                 fill = 'navyblue', color = 'white', size = 0.25, alpha = 0.8,  show.legend=F, na.rm=TRUE) +
+  coord_cartesian(xlim = c(0, 70)) +
+  labs(x = 'Earnings per hour',y = 'Percent')+
+  theme_bw() +
+  expand_limits(x = 0.01, y = 0.01) +
+  scale_y_continuous(expand = c(0.01,0.01),labels = scales::percent_format(accuracy = 1)) +
+  scale_x_continuous(expand = c(0.01,0.01),breaks = seq(0,70, 5))
+
+
+```
 
 
