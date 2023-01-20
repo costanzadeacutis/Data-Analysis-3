@@ -39,15 +39,13 @@ cps <- read_csv("morg-2014-emp.csv",
 
 # Select occupation 
 
-I retain 2 occupation types 
-- Artists and related workers
+I retain 1 occupation type
 - Food Preparation and Serving Related Occupations
 
 ```{r occupations}
-cps <- cps %>% mutate(sample=ifelse(occ2012==2600,1,
-                                              ifelse(cps$occ2012>=4000 & cps$occ2012<=4150,2,0)))
+cps <- cps %>% mutate(sample=ifelse(cps$occ2012>=4000 & cps$occ2012<=4150,1,0))
 
-cps <- cps %>% filter(sample==1 | sample==2)
+cps <- cps %>% filter(sample==1)
 
 glimpse(cps)
 ```
@@ -100,8 +98,6 @@ cps <- cps %>% mutate(fedgov = as.numeric(class=="Government - Federal"),
                       stagov = as.numeric(class=="Government - State"),
                       locgov = as.numeric(class=="Government - Local"),
                       nonprof = as.numeric(class=="Private, Nonprofit"),
-                      ind2dig = as.integer(as.numeric(as.factor(ind02))/100),
-                      occ2dig = as.integer(occ2012/100),
                       union = as.numeric(unionmme=="Yes" | unioncov=="Yes")
 )
 
@@ -119,7 +115,7 @@ cps %>% filter(earnhours>=1) %>% dplyr::select(earnwke,uhours,earnhours) %>% sum
 
 cps <- cps %>% filter(earnhours>=1)
 
-datasummary(earnhours + lnw + female + age + white + afram + asian + hisp + othernonw + nonUSborn + ed_lessBA + ed_BA + ed_MA + ed_Profess + ed_PhD + married + divorced + wirowed + nevermar + child0 + child1 + child2 + child3 + child4pl + fedgov + stagov + locgov + nonprof + ind2dig + occ2dig + union ~
+datasummary(earnhours + lnw + female + age + white + afram + asian + hisp + othernonw + nonUSborn + ed_lessBA + ed_BA + ed_MA + ed_Profess + ed_PhD + married + divorced + wirowed + nevermar + child0 + child1 + child2 + child3 + child4pl + fedgov + stagov + locgov + nonprof + union ~
                Mean + Median + Min + Max + P25 + P75 + N, data = cps)
 
 ```
@@ -163,15 +159,15 @@ First level regressions
 Predictors:
 1. female, age, age^2
 2. female, age, age^2, race
-3. female, age, age^2, race, work, educ
-4. female, age, age^2, race x age, work x age, educ x age
+3. female, age, age^2, race, union, educ
+4. female, age, age^2, race x age, union x age, educ x age
 
 ```{r models}
 
 model1 <- as.formula(earnhours ~ female + age + agesq)
 model2 <- as.formula(earnhours ~ female + age + agesq + afram + asian + hisp + othernonw + nonUSborn)
-model3 <- as.formula(earnhours ~ female + age + agesq + afram + asian + hisp + othernonw + nonUSborn + ind2dig + occ2dig + union + ed_BA + ed_MA + ed_Profess + ed_PhD)
-model4 <- as.formula(earnhours ~ female + age + agesq + afram*age + asian*age + hisp*age + othernonw*age + nonUSborn*age + ind2dig*age + occ2dig*age + union*age + ed_BA*age + ed_MA*age + ed_Profess*age + ed_PhD*age)
+model3 <- as.formula(earnhours ~ female + age + agesq + afram + asian + hisp + othernonw + nonUSborn + union + ed_BA + ed_MA + ed_Profess + ed_PhD)
+model4 <- as.formula(earnhours ~ female + age + agesq + afram*age + asian*age + hisp*age + othernonw*age + nonUSborn*age + union*age + ed_BA*age + ed_MA*age + ed_Profess*age + ed_PhD*age)
 
 # OLS
 reg1 <- feols(model1, data=cps, vcov = 'hetero')
