@@ -181,4 +181,16 @@ reg4 <- feols(model4, data=cps, vcov = 'hetero')
 
 ```
 
+# Evaluate models
+
+Look at BIC and RMSE in the full sample
+
+```{r evaluating}
+
+fitstat_register('k', function(x){length(x$coefficients) - 1}, 'No. Variables')
+etable(reg1, reg2, reg3, reg4, fitstat = c('bic','rmse','r2','n','k'))
+
+```
+
+
 
