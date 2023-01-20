@@ -8,6 +8,47 @@ output:
 ---
 
 ```{r setup, include=FALSE}
+rm(list=ls())
 
+# Import libraries
+library(tidyverse)
+library(lspline)
+library(cowplot)
+library(ggplot2)
+library(boot)
+library(estimatr)
+library(huxtable)
+library(stargazer)
+library(modelsummary)
+library(janitor)
+library(fixest)
+library(grid)
+library(caret)
+
+knitr::opts_chunk$set(echo = TRUE)
 ```
+
+# Dataset
+
+I import the csv data
+
+```{r dataset}
+cps <- read_csv("morg-2014-emp.csv", 
+                     col_types = cols(.default = "?"))
+```
+
+# Select occupation 
+
+I retain 2 occupation types 
+- Artists and related workers
+- Food Preparation and Serving Related Occupations
+
+```{r occupations}
+cps <- cps %>% mutate(sample=ifelse(occ2012==2600,1,
+                                              ifelse(cps$occ2012>=4000 & cps$occ2012<=4150,2,0)))
+
+cps <- cps %>% filter(sample==1 | sample==2)
+```
+
+
 
