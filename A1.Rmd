@@ -155,4 +155,30 @@ ggplot(data=cps, aes(x=earnhours)) +
 
 ```
 
+# Models and estimations
+
+Target: earnings per hour
+
+First level regressions
+Predictors:
+1. female, age, age^2
+2. female, age, age^2, race
+3. female, age, age^2, race, work, educ
+4. female, age, age^2, race x age, work x age, educ x age
+
+```{r models}
+
+model1 <- as.formula(earnhours ~ female + age + agesq)
+model2 <- as.formula(earnhours ~ female + age + agesq + afram + asian + hisp + othernonw + nonUSborn)
+model3 <- as.formula(earnhours ~ female + age + agesq + afram + asian + hisp + othernonw + nonUSborn + ind2dig + occ2dig + union + ed_BA + ed_MA + ed_Profess + ed_PhD)
+model4 <- as.formula(earnhours ~ female + age + agesq + afram*age + asian*age + hisp*age + othernonw*age + nonUSborn*age + ind2dig*age + occ2dig*age + union*age + ed_BA*age + ed_MA*age + ed_Profess*age + ed_PhD*age)
+
+# OLS
+reg1 <- feols(model1, data=cps, vcov = 'hetero')
+reg2 <- feols(model2, data=cps, vcov = 'hetero')
+reg3 <- feols(model3, data=cps, vcov = 'hetero')
+reg4 <- feols(model4, data=cps, vcov = 'hetero')
+
+```
+
 
