@@ -498,3 +498,128 @@ X2  <- c(paste0("(f_room_type+f_municipio+f_minimum_nights+n_bathrooms) * (",
                 paste(amenities, collapse=" + "),")"))
 
 ```
+
+## OLS regressions with cross validation
+In the following section, I construct 6 different models where prices are regressed on
+- M1: number of accomodates
+- M2: M1 + basic var + additional var + review var
+- M3: M2 + polynomials
+- M4: M3 + suggested interactions
+- M5: M4 + amenities
+- M6: M5 + additional interactions
+Before running these regressions, I expect at least the 6th model to be too complex, i.e. too many coefficients.
+I then set up a 5-fold cross-validation for model selection: the models are estimated on the training sample (data_train), and then the predictive performance is evaluated on the rest of the data, i.e. on the test sample (data_test). The aim is to avoid overfitting, i.e. better fit to original data, but worse with live data.
+From the summary table, it can be seen that as the complexity increases, the RMSE, which measures how well the model predicts, decreases in the training set, while it first decreases and then increases in the test set. This is clearly shown by the graph. To chose the best model among those evaluated, I look at the lowest RMSE in the test set, which corresponds to model 5. While, more complex models as M6 are overfitting.
+By choosing model 5, it seems that the relevant variables for the predictions are the those in basic, additional, reviews, amenities, and suggested interactions groups. 
+
+```{r regressions, warning=FALSE}
+
+# Create models in levels models: 1-8
+modellev1 <- " ~ n_accommodates"
+modellev2 <- paste0(" ~ ",paste(basic_lev,collapse = " + "))
+modellev3 <- paste0(" ~ ",paste(c(basic_lev, basic_add,reviews),collapse = " + "))
+modellev4 <- paste0(" ~ ",paste(c(basic_lev,basic_add,reviews,poly_lev),collapse = " + "))
+modellev4 <- paste0(" ~ ",paste(c(basic_lev,basic_add,reviews,poly_lev,X1),collapse = " + "))
+modellev5 <- paste0(" ~ ",paste(c(basic_lev,basic_add,reviews,poly_lev,X1,amenities),collapse = " + "))
+modellev6 <- paste0(" ~ ",paste(c(basic_lev,basic_add,reviews,poly_lev,X1,amenities,X2),collapse = " + "))
+
+
+# Cross validation
+## N = 5
+n_folds=5
+# Create the folds
+set.seed(20180124)
+
+folds_i <- sample(rep(1:n_folds, length.out = nrow(data_work) ))
+# Create results
+model_results_cv <- list()
+
+
+for (i in (1:6)){
+  model_name <-  paste0("modellev",i)
+  model_pretty_name <- paste0("(",i,")")
+
+  yvar <- "price"
+  xvars <- eval(parse(text = model_name))
+  formula <- formula(paste0(yvar,xvars))
+
+  # Initialize values
+  rmse_train <- c()
+  rmse_test <- c()
+
+  model_work_data <- lm(formula,data = data_work)
+  BIC <- BIC(model_work_data)
+  nvars <- model_work_data$rank -1
+  r2 <- summary(model_work_data)$r.squared
+
+  # Do the k-fold estimation
+  for (k in 1:n_folds) {
+    test_i <- which(folds_i == k)
+    # Train sample: all except test_i
+    data_train <- data_work[-test_i, ]
+    # Test sample
+    data_test <- data_work[test_i, ]
+    # Estimation and prediction
+    model <- lm(formula,data = data_train)
+    prediction_train <- predict(model, newdata = data_train)
+    prediction_test <- predict(model, newdata = data_test)
+
+    # Criteria evaluation
+    rmse_train[k] <- mse_lev(prediction_train, data_train[,yvar])**(1/2)
+    rmse_test[k] <- mse_lev(prediction_test, data_test[,yvar])**(1/2)
+    
+  }
+  
+   model_results_cv[[model_name]] <- list(yvar=yvar,xvars=xvars,formula=formula,model_work_data=model_work_data,
+                                         rmse_train = rmse_train,rmse_test = rmse_test,BIC = BIC,
+                                         model_name = model_pretty_name, nvars = nvars, r2 = r2)
+}
+
+
+model <- lm(formula,data = data_train)
+prediction_train <- predict(model, newdata = data_train)
+prediction_test <- predict(model, newdata = data_test)
+
+#skim(data_train$ln_days_since)
+
+t1 <- imap(model_results_cv,  ~{
+  as.data.frame(.x[c("rmse_test", "rmse_train")]) %>%
+    dplyr::summarise_all(.funs = mean) %>%
+    mutate("model_name" = .y , "model_pretty_name" = .x[["model_name"]] ,
+           "nvars" = .x[["nvars"]], "r2" = .x[["r2"]], "BIC" = .x[["BIC"]])
+}) %>%
+  bind_rows()
+t1
+column_names <- c("Model", "N predictors", "R-squared", "BIC", "Training RMSE",
+                 "Test RMSE")
+
+# R2, BIC on full work data-n.
+# In sample rmse: average on training data; avg test : average on test data
+
+t14_2 <- t1 %>%
+  select("model_pretty_name", "nvars", "r2" , "BIC", "rmse_train", "rmse_test")
+colnames(t14_2) <- column_names
+print(xtable(t14_2, type = "latex", digits=c(0,0,0,2,0,2,2)), include.rownames=FALSE, booktabs=TRUE, floating = FALSE)
+
+# RMSE training vs test graph
+t1_levels <- t1 %>%
+  dplyr::select("nvars", "rmse_train", "rmse_test") %>%
+  gather(var,value, rmse_train:rmse_test) %>%
+  mutate(nvars2=nvars+1) %>%
+  mutate(var = factor(var, levels = c("rmse_train", "rmse_test"),
+                      labels = c("RMSE Training","RMSE Test")))
+
+model_result_plot_levels <- ggplot(data = t1_levels,
+                                   aes(x = factor(nvars2), y = value, color=factor(var), group = var)) +
+  geom_line(size=1,show.legend=FALSE, na.rm = TRUE) +
+  scale_color_manual(name="",
+                     values=c(color[2],color[1])) +
+  scale_y_continuous(name = "RMSE", limits = c(90, 114), breaks = seq(90,114, 2)) +
+  scale_x_discrete( name = "Number of coefficients", expand=c(0.01, 0.01)) +
+  geom_dl(aes(label = var),  method = list("last.points", dl.trans(x=x-1), cex=0.4)) +
+  #scale_colour_discrete(guide = 'none') +
+  theme_bg()
+model_result_plot_levels
+save_fig("Airbnb-model-result-levels", output, "small")
+
+```
