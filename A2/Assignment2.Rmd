@@ -166,3 +166,89 @@ data <- data %>%
   )
 ```
 
+
+# Descriptive analysis
+## Prices
+The prices for these apartments range from 9 to 90180 dollars per night. Probably both the very low and the very high prices are either anomalies or were wrongly imputed, especially the very high ones. Very extreme prices would be difficult to predict.
+Given these considerations, I retain only those prices above 20 and below 1500 dollars per night. The resulting dataset has 16700 observations and 90 variables, after some further data cleaning and feature engineering.
+I first look at how the average price moves in terms of Municipio and room type. As expected, highest prices are in Municipio 1 (which is the core of the city) and for entire apartments/home.
+I analyze the histograms for prices in levels and logs: the distribution of prices in levels is right-skewed, meaning that there are very few high prices; the log transformation gives a normally shaped distribution. Moreover, for better visualization, I only prices below 400 dollars per night, and this time I look at percentages. The same evaluation as before applies.
+Finally I look at apartment price distribution by room type: it is clear that the entire apartments are priced the highest, the shared rooms the lowest, as expected.
+
+```{r prices, warning=FALSE}
+#Prices
+summary(data$price)
+describe(data$price)
+
+#drop very weird prices above 1500 and below 20
+data <- data %>% filter(price <= 1500,
+                        price > 20)
+
+data <- data %>%
+  mutate(ln_price = log(price))
+
+#How is the average price changing by `room_type` and the `municipio`?
+data %>%
+  group_by(f_municipio, f_room_type) %>%
+  dplyr::summarize(mean_price = mean(price, na.rm=TRUE))
+
+Hmisc::describe(data$price)
+
+# Histograms
+Airbnb_price <- ggplot(data, aes(price)) +
+  geom_histogram(binwidth = 25, fill = color[1], color = color.outline, alpha = 0.8, size = 0.25) +
+  ylab("count") +
+  xlab("Price") +
+  theme_bg()
+Airbnb_price
+
+Airbnb_lnprice <- ggplot(data, aes(ln_price)) +
+  geom_histogram(binwidth = 0.15, fill = color[1], color = color.outline, alpha = 0.8, size = 0.25) +
+  ylab("Count") +
+  xlab("Log price") +
+  theme_bg()
+Airbnb_lnprice
+
+# Look even closer, consider only prices below 400
+datau <- subset(data, price<400)
+
+# Histograms
+# price
+Airbnb_price_percent <- ggplot(data=datau, aes(x=price)) +
+  geom_histogram_da(type="percent", binwidth = 10) +
+  labs(x = "Price (US dollars)",y = "Percent")+
+  scale_y_continuous(expand = c(0.00,0.00),limits=c(0, 0.15), breaks = seq(0, 0.15, by = 0.03), labels = scales::percent_format(1)) +
+    scale_x_continuous(expand = c(0.00,0.00),limits=c(0,400), breaks = seq(0,400, 50)) +
+  theme_bw() 
+Airbnb_price_percent
+save_fig("Airbnb-price-percent", output, "small")
+
+
+# lnprice
+Airbnb_price_percent<- ggplot(data=datau, aes(x=ln_price)) +
+  geom_histogram_da(type="percent", binwidth = 0.18) +
+  #  geom_histogram(aes(y = (..count..)/sum(..count..)), binwidth = 0.18,
+  #               color = color.outline, fill = color[1], size = 0.25, alpha = 0.8,  show.legend=F,  na.rm=TRUE) +
+  coord_cartesian(xlim = c(2.5, 6.5)) +
+  scale_y_continuous(expand = c(0.00,0.00),limits=c(0, 0.15), breaks = seq(0, 0.15, by = 0.05), labels = scales::percent_format(5L)) +
+  scale_x_continuous(expand = c(0.00,0.01),breaks = seq(2.4,6.6, 0.6)) +
+  labs(x = "ln(price, US dollars)",y = "Percent")+
+  theme_bw() 
+Airbnb_price_percent
+save_fig("Airbnb-price-percent", output, "small")
+
+
+## Boxplot of price by room type
+Airbnb_room_type <- ggplot(data = datau, aes(x = f_room_type, y = price)) +
+  stat_boxplot(aes(group = f_room_type), geom = "errorbar", width = 0.3,
+               color = c(color[2],color[1], color[3]), size = 0.5, na.rm=T)+
+  geom_boxplot(aes(group = f_room_type),
+               color = c(color[2],color[1], color[3]), fill = c(color[2],color[1], color[3]),
+               size = 0.5, width = 0.6, alpha = 0.3, na.rm=T, outlier.shape = NA) +
+  scale_y_continuous(expand = c(0.01,0.01),limits = c(0,400), breaks = seq(0,400,100)) +
+  labs(x = "Room type",y = "Price (US dollars)")+
+  theme_bg()
+Airbnb_room_type
+save_fig("Airbnb_room_type", output, "small")
+
+```
