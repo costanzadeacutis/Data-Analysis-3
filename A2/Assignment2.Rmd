@@ -672,3 +672,100 @@ print(lasso_cv_rmse[1, 1])
 
 
 ```
+
+
+### Diagnostics
+After choosing M5 as the best model, I want to evaluate the actual prediction with post-prediction diagnostics. First, I calculate the RMSE of this model in the Holdout set. The RMSE is lower than in the cross validation. I also look at the resulting RMSE in the Holdout set when using LASSO. It is again lower than the cross validation, quite close to that from M5. Therefore, I perform the diagnostic analysis on M5.
+From the first graph, it can be noticed that most of the low prices are quite well predicted, but the high prices are wrongly predicted. In the bar chart of price variation by size, it emerges that the model generates very wide 80% PI intervals. Therefore, predictions are quite imprecise.
+
+```{r diagnostics, warning=FALSE}
+#Diagnostics on M5
+#model2_level <- model_results_cv[["modellev2"]][["model_work_data"]]
+model5_level <- model_results_cv[["modellev5"]][["model_work_data"]]
+# look at holdout RMSE
+model5_level_work_rmse <- mse_lev(predict(model5_level, newdata = data_work), data_work[,"price"])**(1/2)
+model5_level_holdout_rmse <- mse_lev(predict(model5_level, newdata = data_holdout), data_holdout[,"price"])**(1/2)
+model5_level_holdout_rmse
+
+#look at holdout RMSE using LASSO
+model_lasso_holdout_rmse <- mse_lev(predict(lasso_model, newdata = data_holdout), data_holdout[,"price"])**(1/2)
+model_lasso_holdout_rmse
+#LASSO gives a slightly lower RMSE
+
+# Figures for fitted vs actual outcome variables
+# Target variable
+Ylev <- data_holdout[["price"]]
+
+meanY <-mean(Ylev)
+sdY <- sd(Ylev)
+meanY_m2SE <- meanY -1.96 * sdY
+meanY_p2SE <- meanY + 1.96 * sdY
+Y5p <- quantile(Ylev, 0.05, na.rm=TRUE)
+Y95p <- quantile(Ylev, 0.95, na.rm=TRUE)
+
+# Predicted values
+predictionlev_holdout_pred <- as.data.frame(predict(model5_level, newdata = data_holdout, interval="predict")) %>% rename(pred_lwr = lwr, pred_upr = upr)
+predictionlev_holdout_conf <- as.data.frame(predict(model5_level, newdata = data_holdout, interval="confidence")) %>% rename(conf_lwr = lwr, conf_upr = upr)
+
+predictionlev_holdout <- cbind(data_holdout[,c("price","n_accommodates")],
+                               predictionlev_holdout_pred,
+                               predictionlev_holdout_conf[,c("conf_lwr","conf_upr")])
+
+
+# Create data frame with the real and predicted values
+d <- data.frame(ylev=Ylev, predlev=predictionlev_holdout[,"fit"] )
+# Check the differences
+d$elev <- d$ylev - d$predlev
+
+# Plot predicted vs price
+level_vs_pred <- ggplot(data = d) +
+  geom_point(aes(y=ylev, x=predlev), color = color[1], size = 1,
+             shape = 16, alpha = 0.7, show.legend=FALSE, na.rm=TRUE) +
+  #geom_smooth(aes(y=ylev, x=predlev), method="lm", color=color[2], se=F, size=0.8, na.rm=T)+
+  geom_segment(aes(x = 0, y = 0, xend = 400, yend =400), size=0.5, color=color[2], linetype=2) +
+  coord_cartesian(xlim = c(0, 400), ylim = c(0, 400)) +
+  scale_x_continuous(expand = c(0.01,0.01),limits=c(0, 400), breaks=seq(0, 400, by=50)) +
+  scale_y_continuous(expand = c(0.01,0.01),limits=c(0, 400), breaks=seq(0, 400, by=50)) +
+  labs(y = "Price (US dollars)", x = "Predicted price  (US dollars)") +
+  theme_bg() 
+level_vs_pred
+save_fig("Airbnb-level-vs-pred", output, "small")
+
+
+# Redo predicted values at 80% PI
+predictionlev_holdout_pred <- as.data.frame(predict(model5_level, newdata = data_holdout, interval="predict", level=0.8)) %>%
+  rename(pred_lwr = lwr, pred_upr = upr)
+predictionlev_holdout_conf <- as.data.frame(predict(model5_level, newdata = data_holdout, interval="confidence", level=0.8)) %>%
+  rename(conf_lwr = lwr, conf_upr = upr)
+
+predictionlev_holdout <- cbind(data_holdout[,c("price","n_accommodates")],
+                               predictionlev_holdout_pred,
+                               predictionlev_holdout_conf[,c("conf_lwr","conf_upr")])
+
+summary(predictionlev_holdout_pred)
+
+predictionlev_holdout_summary <-
+  predictionlev_holdout %>%
+  group_by(n_accommodates) %>%
+  dplyr::summarise(fit = mean(fit, na.rm=TRUE), pred_lwr = mean(pred_lwr, na.rm=TRUE), pred_upr = mean(pred_upr, na.rm=TRUE),
+            conf_lwr = mean(conf_lwr, na.rm=TRUE), conf_upr = mean(conf_upr, na.rm=TRUE))
+
+kable(x = predictionlev_holdout_summary, format = "latex", booktabs=TRUE,  digits = 3, row.names = FALSE,
+      linesep = "", col.names = c("Accomodates","Prediction","Pred. interval lower",
+                                  "Pred. interval upper","Conf.interval lower","Conf.interval upper")) %>%
+  cat(.,file= paste0(output, "modellev7_holdout_summary.tex"))
+
+
+CI_n_accomodate <- ggplot(predictionlev_holdout_summary, aes(x=factor(n_accommodates))) +
+  geom_bar(aes(y = fit ), stat="identity",  fill = color[1], alpha=0.7 ) +
+  geom_errorbar(aes(ymin=pred_lwr, ymax=pred_upr, color = "Pred. interval"),width=.2) +
+  #geom_errorbar(aes(ymin=conf_lwr, ymax=conf_upr, color = "Conf. interval"),width=.2) +
+  scale_y_continuous(name = "Predicted price (US dollars)") +
+  scale_x_discrete(name = "Accomodates (Persons)") +
+  scale_color_manual(values=c(color[2], color[2])) +
+  theme_bg() +
+  theme(legend.title= element_blank(),legend.position="none")
+CI_n_accomodate
+save_fig("airbnb-ci-n-accomodate", output, "small")
+
+```
