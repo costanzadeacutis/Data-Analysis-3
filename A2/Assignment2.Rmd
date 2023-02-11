@@ -923,3 +923,222 @@ kable(x = result_2, format = "latex", digits = 3) %>%
 
 
 ```
+
+
+## Diagnostics 
+Random forest cannot be interepreted as it is. Diagnostics are possible on the holdout set:
+1. Variable importance plot - show average improvements in fit when variables are used to split the data
+ - top 10
+ - grouping factor variables
+2. Partial dependence plot
+3. Subsample performance
+```{r}
+
+# Variable Importance Plots 
+# first need a function to calculate grouped varimp
+group.importance <- function(rf.obj, groups) {
+  var.imp <- as.matrix(sapply(groups, function(g) {
+    sum(importance(rf.obj)[g], na.rm = TRUE)
+  }))
+  colnames(var.imp) <- "MeanDecreaseGini"
+  return(var.imp)
+}
+
+
+# variable importance plot
+# 1) full varimp plot, full
+# 2) varimp plot grouped
+# 3) varimp plot , top 10
+# 4) varimp plot  w copy, top 10
+
+
+rf_model_2_var_imp <- importance(rf_model_2$finalModel)/1000
+rf_model_2_var_imp_df <-
+  data.frame(varname = names(rf_model_2_var_imp),imp = rf_model_2_var_imp) %>%
+  mutate(varname = gsub("f_municipio", "Borough:", varname) ) %>%
+  mutate(varname = gsub("f_room_type", "Room type:", varname) ) %>%
+  arrange(desc(imp)) %>%
+  mutate(imp_percentage = imp/sum(imp))
+
+
+
+# 1) full varimp plot, above a cutoff
+
+# to have a quick look
+plot(varImp(rf_model_2))
+
+cutoff = 600
+rf_model_2_var_imp_plot <- ggplot(rf_model_2_var_imp_df[rf_model_2_var_imp_df$imp>cutoff,],
+                                  aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color=color[1], size=1.5) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color=color[1], size=1) +
+  ylab("Importance (Percent)") +
+  xlab("Variable Name") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_bg() +
+  theme(axis.text.x = element_text(size=6), axis.text.y = element_text(size=6),
+        axis.title.x = element_text(size=6), axis.title.y = element_text(size=6))
+rf_model_2_var_imp_plot
+#save_fig("rf_varimp1",output, "large")
+save_fig("Airbnb-rf-varimp-base",output, "large")
+
+
+# 2) full varimp plot, top 10 only
+
+# have a version with top 10 vars only
+rf_model_2_var_imp_plot_b <- ggplot(rf_model_2_var_imp_df[1:10,], aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color=color[1], size=1) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color=color[1], size=0.75) +
+  ylab("Importance (Percent)") +
+  xlab("Variable Name") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  theme_bg() +
+  theme(axis.text.x = element_text(size=4), axis.text.y = element_text(size=4),
+        axis.title.x = element_text(size=4), axis.title.y = element_text(size=4))
+rf_model_2_var_imp_plot_b
+#save_fig("rf_varimp1_b",output, "small")
+save_fig("Airbnb-rf-varimp-top10",output, "small")
+
+
+
+# 2) varimp plot grouped
+
+# grouped variable importance - keep binaries created off factors together
+
+varnames <- rf_model_2$finalModel$xNames
+f_municipio_varnames <- grep("f_municipio",varnames, value = TRUE)
+#f_cancellation_policy_varnames <- grep("f_cancellation_policy",varnames, value = TRUE)
+#f_bed_type_varnames <- grep("f_bed_type",varnames, value = TRUE)
+#f_property_type_varnames <- grep("f_property_type",varnames, value = TRUE)
+f_room_type_varnames <- grep("f_room_type",varnames, value = TRUE)
+
+groups <- list(f_municipio=f_municipio_varnames,
+               #f_cancellation_policy = f_cancellation_policy_varnames,
+               #f_bed_type = f_bed_type_varnames,
+               #f_property_type = f_property_type_varnames,
+               f_room_type = f_room_type_varnames,
+               f_bathroom = "n_bathroom",
+               n_days_since = "n_days_since",
+               n_accommodates = "n_accommodates",
+               n_beds = "n_beds",
+               f_minimum_nights = "f_minimum_nights",
+               flag_days_since = "flag_days_since")
+
+rf_model_2_var_imp_grouped <- group.importance(rf_model_2$finalModel, groups)
+rf_model_2_var_imp_grouped_df <- data.frame(varname = rownames(rf_model_2_var_imp_grouped),
+                                            imp = rf_model_2_var_imp_grouped[,1])  %>%
+  mutate(imp_percentage = imp/sum(imp))
+
+rf_model_2_var_imp_grouped_plot <-
+  ggplot(rf_model_2_var_imp_grouped_df, aes(x=reorder(varname, imp), y=imp_percentage)) +
+  geom_point(color=color[1], size=1) +
+  geom_segment(aes(x=varname,xend=varname,y=0,yend=imp_percentage), color=color[1], size=0.7) +
+  ylab("Importance (Percent)") +   xlab("Variable Name") +
+  coord_flip() +
+  # expand=c(0,0),
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+theme_bg() +
+  theme(axis.text.x = element_text(size=4), axis.text.y = element_text(size=4),
+        axis.title.x = element_text(size=4), axis.title.y = element_text(size=4))
+rf_model_2_var_imp_grouped_plot
+#save_fig("rf_varimp_grouped1",output, "small")
+save_fig("Airbnb-rf-varimp-group",output, "small")
+
+
+
+# Partial Dependence Plots 
+
+pdp_f_muni <- pdp::partial(rf_model_2, pred.var = "f_municipio", pred.grid = distinct_(data_holdout, "f_municipio"), train = data_work)
+pdp_f_muni_plot <- pdp_f_muni %>%
+   autoplot( ) +
+  geom_point(color=color[1], size=2) +
+  ylab("Predicted price") +
+  xlab("Municipi") +
+  scale_y_continuous(limits=c(12,150), breaks=seq(120,150, by=5)) +
+  theme_bg()
+pdp_f_muni_plot
+#save_fig("rf_pdp_n_accom", output, "small")
+save_fig("Airbnb-rf-pdp-f-municipi", output, "small")
+
+
+pdp_n_bathrooms <- pdp::partial(rf_model_2, pred.var = "n_bathrooms", pred.grid = distinct_(data_holdout, "n_bathrooms"), train = data_work)
+pdp_n_bathrooms_plot <- pdp_n_bathrooms %>%
+   autoplot( ) +
+  geom_point(color=color[1], size=2) +
+  geom_line(color=color[1], size=1) +
+  ylab("Predicted price") +
+  xlab("Number of bathrooms") +
+  scale_x_continuous(limit=c(1,4), breaks=seq(1,4,1))+
+theme_bg()
+pdp_n_bathrooms_plot
+#save_fig("rf_pdp_roomtype", output, "small")
+save_fig("Airbnb-rf-pdp-bathrooms", output, "small")
+
+# Subsample performance: RMSE / mean(y) 
+# On the holdout set
+
+# ---- cheaper or more expensive flats - not used in book
+data_holdout_w_prediction <- data_holdout %>%
+  mutate(predicted_price = predict(rf_model_2, newdata = data_holdout))
+
+######### create nice summary table of heterogeneity
+a <- data_holdout_w_prediction %>%
+  mutate(is_low_size = ifelse(n_accommodates <= 3, "small apt", "medium apt")) %>%
+  group_by(is_low_size) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = RMSE(predicted_price, price) / mean(price)
+  )
+
+#3 richest, 3 poorest
+b <- data_holdout_w_prediction %>%
+  filter(f_municipio %in% c("Municipio1", "Municipio3", "Municipio2", "Municipio8", "Municipio7", "Municipio9")) %>%
+  group_by(f_municipio) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = rmse / mean_price
+  )
+
+c <- data_holdout_w_prediction %>%
+  filter(f_room_type %in% c("Entire home/apt", "Private room", "Shared room")) %>%
+  group_by(f_room_type) %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = rmse / mean_price
+  )
+
+
+d <- data_holdout_w_prediction %>%
+  dplyr::summarise(
+    rmse = RMSE(predicted_price, price),
+    mean_price = mean(price),
+    rmse_norm = RMSE(predicted_price, price) / mean(price)
+  )
+
+# Save output
+colnames(a) <- c("", "RMSE", "Mean price", "RMSE/price")
+colnames(b) <- c("", "RMSE", "Mean price", "RMSE/price")
+colnames(c) <- c("", "RMSE", "Mean price", "RMSE/price")
+d<- cbind("All", d)
+colnames(d) <- c("", "RMSE", "Mean price", "RMSE/price")
+
+line1 <- c("Type", "", "", "")
+line2 <- c("Apartment size", "", "", "")
+line3 <- c("Borough", "", "", "")
+
+result_3 <- rbind(line2, a, line1, c, line3, b, d) %>%
+  transform(RMSE = as.numeric(RMSE), `Mean price` = as.numeric(`Mean price`),
+            `RMSE/price` = as.numeric(`RMSE/price`))
+
+options(knitr.kable.NA = '')
+kable(x = result_3, format = "latex", booktabs=TRUE, linesep = "",digits = c(0,2,1,2), col.names = c("","RMSE","Mean price","RMSE/price")) %>%
+  cat(.,file= paste0(output, "performance_across_subsamples.tex"))
+options(knitr.kable.NA = NULL)
+
+
+```
