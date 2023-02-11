@@ -316,3 +316,46 @@ data %>%
 
 
 ```
+
+## Number of reviews
+For better visualization, I consider only those apartments that have less then 100 reviews (those with more are not frequent). The distribution is highly right-skewed.
+I also create a factor variable for 3 categories: apartments with either none, 1-50, or 51+ reviews. Apartments with 0 reviews appear to have higher mean prices.
+
+```{r number of reviews}
+## Number of reviews
+
+ggplot(data, aes(n_number_of_reviews)) +
+  geom_histogram(binwidth = 10, fill = 'navyblue', color = 'white', alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("N of reviews") +
+  theme_bw()
+
+nreview_plot <- data %>%
+  filter(n_number_of_reviews <100)
+
+ggplot(nreview_plot, aes(n_number_of_reviews)) +
+  geom_histogram(binwidth = 5, fill = color[1], color = color.outline, alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("N of reviews") +
+  theme_bg()
+
+# number of reviews: use logs as well
+data <- data %>%
+  mutate(ln_number_of_reviews = log(n_number_of_reviews+1))
+
+ggplot(data, aes(ln_number_of_reviews)) +
+  geom_histogram(binwidth = 0.5, fill = color[1], color = color.outline, alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("Log N of reviews") +
+  theme_bg()
+
+# Pool num of reviews to 3 categories: none, 1-51 and >51
+data <- data %>%
+  mutate(f_number_of_reviews = cut(n_number_of_reviews, c(0,1,51,max(data$n_number_of_reviews)+1), labels=c(0,1,2), right = F))
+
+data %>%
+  group_by(f_number_of_reviews) %>%
+  summarise(median_price = median(price), mean_price = mean(price) ,  n=n())
+
+
+```
