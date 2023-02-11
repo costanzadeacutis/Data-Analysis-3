@@ -398,3 +398,54 @@ data %>%
   summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
 
 ```
+
+
+
+
+
+# Models
+My analysis starts by looking at potential interactions: 
+1. Minimum nights with children friendly amenities, presence of a gym, kitchen amenities, outdoor furniture
+2. Room type with elevator, kitchen amenities, wardrobe, special view
+3. Bathrooms with bathtub, hot tub, bathroom essentials, essentials
+From the bar charts, it can be seen that do not emerge very clear interactions
+
+```{r interactions, warning=FALSE}
+
+#Look up min nights interactions
+p1 <- price_diff_by_variables2(data, "f_minimum_nights", "d_babykit", "Minimum nights", "Children friendly")
+p2 <- price_diff_by_variables2(data, "f_minimum_nights", "d_gym", "Minimum nights", "Gym")
+
+p3 <- price_diff_by_variables2(data, "f_minimum_nights", "d_kitchenamenities", "Minimum nights", "Kitchen amenities")
+p4 <- price_diff_by_variables2(data, "f_minimum_nights", "d_outdoorfurniture", "Minimum nights", "Outdoor furniture")
+
+g_interactions <- plot_grid(p1, p2, p3, p4, nrow=2, ncol=2)
+g_interactions
+save_fig("interactions_min_nights",output,"large")
+
+#Look up room types interactions
+p5 <- price_diff_by_variables2(data, "f_room_type", "d_elevator", "Room type", "Elevator")
+p6 <- price_diff_by_variables2(data, "f_room_type", "d_kitchenamenities", "Room type", "Kitchen amenities")
+
+p7 <- price_diff_by_variables2(data, "f_room_type", "d_wardrobe", "Room type", "Wardrobe")
+p8 <- price_diff_by_variables2(data, "f_room_type", "d_specialview", "Room type", "Special view")
+
+g_interactions2 <- plot_grid(p5, p6, p7, p8, nrow=2, ncol=2)
+g_interactions2
+save_fig("interactions_room_type",output,"large")
+
+#Look up bathrooms interactions
+p9 <- price_diff_by_variables2(data, "n_bathrooms", "d_bathtub", "Bathrooms", "Bathtub")
+p10 <- price_diff_by_variables2(data, "n_bathrooms", "d_hottub", "Bathrooms", "Hot tub")
+
+p11 <- price_diff_by_variables2(data, "n_bathrooms", "d_bathroomessentials", "Bathrooms", "Bathroom essentials")
+p12 <- price_diff_by_variables2(data, "n_bathrooms", "d_essentials", "Bathrooms", "Essentials")
+
+
+g_interactions3 <- plot_grid(p9, p10, p11, p12, nrow=2, ncol=2)
+g_interactions3
+save_fig("interactions_bathroom",output,"large")
+
+
+
+```
