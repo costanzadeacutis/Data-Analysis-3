@@ -447,5 +447,54 @@ g_interactions3
 save_fig("interactions_bathroom",output,"large")
 
 
+```
+
+## General setup
+I group variables in basic variables, additional variables, review variables, and variables or higher order. These are the variables that I use in the analysis. Moreover, I put a d_ in front of all amenities dummies.
+Then, I randomly create:
+- Work set (data_work, 80% of the total data): where I will do the model building, the selection of the best model and the prediction;
+- Holdout set (data_holdout, 20% of the total data): part of the data for evaluating the prediction itself
+Finally, I create interactions following the graphs and interactions of variables that I believe are more relevant with the amenities. 
+
+```{r setup models}
+
+# Basic Variables
+basic_lev  <- c("n_accommodates", "f_room_type", "f_municipio")
+# Additional variables
+basic_add <- c("n_beds", "n_bathrooms", "f_minimum_nights", "n_days_since", "flag_days_since")
+reviews <- c("f_number_of_reviews","review_scores_rating", "flag_review_scores_rating")
+# Higher orders
+poly_lev <- c("n_accommodates2", "n_days_since2", "n_days_since3")
+
+# Dummy variables: Extras -> collect all options and create dummies
+amenities <-  grep("^d_.*", names(data), value = TRUE)
+
+
+# Separate the Holdout set, and obtain the Working data
+
+# create a holdout set (20% of observations)
+smp_size <- floor(0.2 * nrow(data))
+
+# Set the random number generator: It will make results reproducible
+set.seed(20180123)
+
+# create ids:
+# 1) seq_len: generate regular sequences
+# 2) sample: select random rows from a table
+holdout_ids <- sample(seq_len(nrow(data)), size = smp_size)
+data$holdout <- 0
+data$holdout[holdout_ids] <- 1
+
+#Hold-out set Set
+data_holdout <- data %>% filter(holdout == 1)
+
+#Working data set
+data_work <- data %>% filter(holdout == 0)
+
+#Interactions suggested by the graphs
+X1 <- c("f_minimum_nights*(d_babykit+d_outdoorfurniture+d_gym)")
+#Additional interactions
+X2  <- c(paste0("(f_room_type+f_municipio+f_minimum_nights+n_bathrooms) * (",
+                paste(amenities, collapse=" + "),")"))
 
 ```
