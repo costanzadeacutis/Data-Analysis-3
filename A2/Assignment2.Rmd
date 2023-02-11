@@ -272,3 +272,47 @@ Airbnb_n_accommodates <- ggplot(data = data, aes(x=n_accommodates, y=price)) +
   theme_bg()
 Airbnb_n_accommodates
 ```
+
+## Number of beds and bathrooms
+The number of beds ranges from 1 to 10 for these apartments. Mean prices tend to increase as the number of beds increases, with some exceptions: 8 and 9 beds have lower or equal mean prices compared to 1 or 2 beds. This is could be due to overcrowding: more beds but the meters squared do not increase.
+
+For bathrooms, where the value is 0, it probably means that the bathroom is outside the private or shared room, thus I impute that there is at least 1. Also those 0.5, I assume that they are like 1 bathroom.
+The mean price increases as the number of bathrooms increases.
+
+```{r beds and bathrooms}
+## Beds
+data %>%
+  group_by(n_beds) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+# maybe best is to have log beds
+data <- data %>%
+  mutate(ln_beds = log(n_beds))
+
+ggplot(data, aes(n_beds)) +
+  geom_histogram(binwidth = 0.5, fill = color[1], color = color.outline, alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("N of beds") +
+  theme_bg()
+
+## bathrooms
+data %>%
+  group_by(n_bathrooms) %>%
+  summarise(mean_price = mean(price), n = n())
+
+data <- data %>%
+  mutate(n_bathrooms =  ifelse(n_bathrooms==0.0, 1, n_bathrooms),
+         n_bathrooms =  ifelse(n_bathrooms==0.5, 1, n_bathrooms))
+
+ggplot(data, aes(n_bathrooms)) +
+  geom_histogram(binwidth = 0.5, fill = color[1], color = color.outline, alpha = 0.8, size = 0.25) +
+  ylab("") +
+  xlab("N of bathrooms") +
+  theme_bg()
+
+data %>%
+  group_by(n_bathrooms) %>%
+  summarise(mean_price = mean(price), n = n())
+
+
+```
