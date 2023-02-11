@@ -795,3 +795,131 @@ predictors_2 <- c(basic_vars, reviews, amenities) #RF2
 predictors_E <- c(basic_vars, reviews, X1, amenities, X2) #RFE
 
 ```
+
+## Cross-validation
+I perform cross-validated RF using RF1 and RF2, with imputed parameters and autotuning. It emerges that the choice of the parameters do not matter much, but the best combination for the benchmark model (RF2) is 5 observations in terminal nodes and 10 variables at each split. The resulting RSME is 99.7.
+
+```{r RF CV}
+
+# do 5-fold CV
+train_control <- trainControl(method = "cv",
+                              number = 5,
+                              verboseIter = FALSE)
+
+
+# set tuning
+tune_grid <- expand.grid(
+  .mtry = c(5, 7, 9),
+  .splitrule = "variance",
+  .min.node.size = c(5, 10)
+)
+
+
+# simpler model for model A (1)
+set.seed(20180124)
+system.time({
+rf_model_1 <- train(
+  formula(paste0("price ~", paste0(predictors_1, collapse = " + "))),
+  data = data_work,
+  method = "ranger",
+  trControl = train_control,
+  tuneGrid = tune_grid,
+  importance = "impurity"
+)
+})
+rf_model_1
+
+# set tuning for benchamrk model (2)
+tune_grid <- expand.grid(
+  .mtry = c(8, 10, 12),
+  .splitrule = "variance",
+  .min.node.size = c(5, 10, 15)
+)
+
+set.seed(20180124)
+system.time({
+rf_model_2 <- train(
+  formula(paste0("price ~", paste0(predictors_2, collapse = " + "))),
+  data = data_work,
+  method = "ranger",
+  trControl = train_control,
+  tuneGrid = tune_grid,
+  importance = "impurity"
+)
+})
+
+rf_model_2
+
+# auto tuning first
+ set.seed(20180124)
+ system.time({
+   rf_model_2auto <- train(
+     formula(paste0("price ~", paste0(predictors_2, collapse = " + "))),
+     data = data_work,
+     method = "ranger",
+     trControl = train_control,
+     importance = "impurity"
+   )
+ })
+ rf_model_2auto 
+#rf_model_2auto <-rf_model_2
+
+ 
+# evaluate random forests 
+
+results <- resamples(
+  list(
+    model_1  = rf_model_1,
+    model_2  = rf_model_2,
+    model_2b = rf_model_2auto
+  )
+)
+summary(results)
+
+
+# Save outputs 
+
+# Show Model 2B rmse shown with all the combinations
+rf_tuning_modelB <- rf_model_2$results %>%
+  dplyr::select(mtry, min.node.size, RMSE) %>%
+  dplyr::rename(nodes = min.node.size) %>%
+  spread(key = mtry, value = RMSE)
+
+kable(x = rf_tuning_modelB, format = "latex", digits = 2, caption = "CV RMSE") %>%
+  add_header_above(c(" ", "vars" = 3)) %>%
+  cat(.,file= paste0(output,"rf_tuning_modelB.tex"))
+
+
+# Turning parameter choice 1
+result_1 <- matrix(c(
+                     rf_model_1$finalModel$mtry,
+                     rf_model_2$finalModel$mtry,
+                     rf_model_2auto$finalModel$mtry,
+                     rf_model_1$finalModel$min.node.size,
+                     rf_model_2$finalModel$min.node.size,
+                     rf_model_2auto$finalModel$min.node.size
+
+                     ),
+                    nrow=3, ncol=2,
+                    dimnames = list(c("Model A", "Model B","Model B auto"),
+                                    c("Min vars","Min nodes"))
+                   )
+kable(x = result_1, format = "latex", digits = 3) %>%
+  cat(.,file= paste0(output,"rf_models_turning_choices.tex"))
+
+# Turning parameter choice 2
+result_2 <- matrix(c(mean(results$values$`model_1~RMSE`),
+                     mean(results$values$`model_2~RMSE`),
+                     mean(results$values$`model_2b~RMSE`)
+),
+nrow=3, ncol=1,
+dimnames = list(c("Model A", "Model B","Model B auto"),
+                c(results$metrics[2]))
+)
+
+
+kable(x = result_2, format = "latex", digits = 3) %>%
+   cat(.,file= paste0(output,"rf_models_rmse.tex"))
+
+
+```
