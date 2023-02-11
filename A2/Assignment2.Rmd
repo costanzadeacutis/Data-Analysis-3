@@ -623,3 +623,52 @@ model_result_plot_levels
 save_fig("Airbnb-model-result-levels", output, "small")
 
 ```
+
+## Regression with LASSO
+I now look into LASSO, which is an automatic method to select variables: it shrinks coefficients towards zero of those variables that variables whose inclusion does not improve the fit of the regression. This is equivalent to removing them from the regression.
+I use M6 with 819 candidate features and I ran the LASSO algorithm with 5-fold cross-validation for selecting the optimal for the tuning parameter lambda (which gives the weight to the penalty term). The optimal lambda is 0.5 and the suggested features to be kept are 361: LASSO removed many features that were included in M6, but the number is greater than that in M5, which was chosen through cross-validation in the previous part. LASSO does slightly better in terms of prediction compared to M5 (101.7 against 102.5). It works only slightly better, which means that I can keep M5 as my preferred model: in fact, even if LASSO is fast and automatic, it is hard to interpret.
+
+```{r LASSO, warning=FALSE}
+#LASSO
+# take models 5 (the best) and model 6 (overfit)
+vars_model_5 <- c("price", basic_lev,basic_add,reviews,poly_lev,X1,amenities)
+vars_model_6 <- c("price", basic_lev,basic_add,reviews,poly_lev,X1,amenities,X2)
+
+# Set lasso tuning parameters
+train_control <- trainControl(method = "cv", number = n_folds)
+tune_grid <- expand.grid("alpha" = c(1), "lambda" = seq(0.05, 1, by = 0.05))
+
+# Use model 6 
+formula <- formula(paste0("price ~ ", paste(setdiff(vars_model_6, "price"), collapse = " + ")))
+
+set.seed(20180124)
+lasso_model <- caret::train(formula,
+                      data = data_work,
+                      method = "glmnet",
+                      preProcess = c("center", "scale"),
+                      trControl = train_control,
+                      tuneGrid = tune_grid,
+                    na.action=na.exclude)
+
+print(lasso_model$bestTune$lambda)
+
+lasso_coeffs <- coef(lasso_model$finalModel, lasso_model$bestTune$lambda) %>%
+  as.matrix() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "variable") %>%
+  rename(coefficient = `s1`)  # the column has a name "s1", to be renamed
+
+print(lasso_coeffs)
+
+lasso_coeffs_nz<-lasso_coeffs %>%
+  filter(coefficient!=0)
+print(nrow(lasso_coeffs_nz))
+
+# Evaluate model. CV error:
+lasso_cv_rmse <- lasso_model$results %>%
+  filter(lambda == lasso_model$bestTune$lambda) %>%
+  dplyr::select(RMSE)
+print(lasso_cv_rmse[1, 1])
+
+
+```
