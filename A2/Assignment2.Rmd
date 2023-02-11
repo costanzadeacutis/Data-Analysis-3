@@ -41,3 +41,50 @@ knitr::opts_chunk$set(echo = TRUE)
 #folder to save graphs, files .tex etc
 output <- "output/"
 ```
+
+# Setup
+For the purpose of the analysis, I retain only those that can be defined as apartments in terms of property type.
+
+I create factors from room_type variable, and I categorize it as factor variable together with f_municipio.
+I remove apartments that are categorized as outside, i.e. not in one of the 9 municipi, hence not directly comparable with the others (I assume that the apartments whose prices I am trying to predict are all in the city).
+I also retain only those apartments that can accommodate 2-6 guests, as the new apartments in question.
+
+NB: Municipio - Given that the neighboorhoods are too many and too small, I regrouped them in "municipi": this categorization comes from comune.milano.it. I then factorize them.
+Note: municipio_2_9 is area between Municipio 2 and Municipio 9, that could not be categorized in any of the two.
+
+```{r data}
+data <- read.csv("airbnb_milano_cleaned.csv")
+
+#check property types
+table(data$property_type)
+#keep only apartments
+#excluded private room cause not clear
+data <- data %>% filter(property_type %in% c("Entire condo", "Entire home", "Entire home/apt", "Entire loft", "Entire place", "Entire rental unit", "Entire serviced apartment", "Entire vacation home", "Private room in condo", "Private room in home", "Private room in loft", "Private room in rental unit", "Private room in serviced apartment", "Private room in tiny home", "Private room in vacation home", "Room in serviced apartment", "Shared room in condo", "Shared room in home", "Shared room in loft", "Shared room in rental unit", "Tiny home"))
+
+#check room types
+table(data$room_type)
+#remove hotel room
+data <- data %>% filter(room_type %in% c("Entire home/apt", "Private room", "Shared room"))
+#factor
+data <- data %>% mutate(f_room_type = factor(room_type))
+
+#categorical variables
+categoricals <- c("f_room_type", "f_municipio")
+
+for (i in 1:length(categoricals)) {
+  data %>%
+    group_by(get(categoricals[i])) %>%
+    summarise(mean_price = mean(price) ,  n=n()) %>%
+    print
+}
+
+#drop "outside" (not in the city center)
+data <- data %>% filter(!(f_municipio %in% c("Outside")))
+
+#number accommodates
+data <- data %>% filter(n_accommodates %in% c(2,3,4,5,6))
+
+#drop unused first column
+drops <- c("X")
+data <- data[ , !(names(data) %in% drops)]
+```
