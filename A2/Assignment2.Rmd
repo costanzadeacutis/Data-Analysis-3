@@ -252,3 +252,23 @@ Airbnb_room_type
 save_fig("Airbnb_room_type", output, "small")
 
 ```
+
+## Number of accommodates
+It can be seen from both the graph and the table that the mean price increases as the number of accommodates increase, as expected.
+
+```{r accommodates}
+## n_accommodates: look at distribution
+
+data %>%
+  group_by(n_accommodates) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+Airbnb_n_accommodates <- ggplot(data = data, aes(x=n_accommodates, y=price)) +
+  geom_point(size=1, colour=color[3], shape=16)+
+  ylim(0,1500)+
+  xlim(2,6)+
+  labs(x="Number of people accomodated",y="Price")+
+  geom_smooth(method="lm", colour=color[1], se=FALSE)+
+  theme_bg()
+Airbnb_n_accommodates
+```
