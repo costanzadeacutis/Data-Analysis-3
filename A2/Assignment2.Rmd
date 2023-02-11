@@ -359,3 +359,22 @@ data %>%
 
 
 ```
+
+## Review scores rating
+From the graph, most of the apartments have a high review score, but there is no clear relation with daily prices.
+
+```{r review scores}
+## review score effect
+data %>%
+  group_by(review_scores_rating) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+ggplot(data = data, aes(x=review_scores_rating , y=price)) +
+  geom_point(size=1.5, colour=color[3], shape=4) +
+  ylim(0,1500)+
+  xlim(0,5)+
+  geom_smooth(method="loess", colour=color[1], se=F)+
+  labs(x="Review score",y="Daily price (USD)")+
+  theme_bg()
+
+```
