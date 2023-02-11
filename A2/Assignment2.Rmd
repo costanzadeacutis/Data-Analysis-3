@@ -378,3 +378,23 @@ ggplot(data = data, aes(x=review_scores_rating , y=price)) +
   theme_bg()
 
 ```
+
+## Minimum nights
+It is not specified if the apartments in this project are intended for short or long stays; however, usually Airbnbs are mostly for short stays. Therefore, I created a factor for 4 categories: 1, 2, 3-7, 8+ minimum nights. 
+
+```{r minimum nights}
+# minimum nights
+#not specified if only short stays
+
+data %>%
+  group_by(n_minimum_nights) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+data <- data %>%
+  mutate(f_minimum_nights= cut(n_minimum_nights, c(1,2,3,7,max(data$n_minimum_nights)+1), labels=c(1,2,3,4), right = F))
+
+data %>%
+  group_by(f_minimum_nights) %>%
+  summarise(mean_price = mean(price), min_price= min(price), max_price = max(price), n = n())
+
+```
