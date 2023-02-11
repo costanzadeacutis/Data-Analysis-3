@@ -88,3 +88,15 @@ data <- data %>% filter(n_accommodates %in% c(2,3,4,5,6))
 drops <- c("X")
 data <- data[ , !(names(data) %in% drops)]
 ```
+
+## First look at the data
+I have a dataset with 16833 observations and 77 variables. Some of these variables have some/many missing values: review_scores_rate, p_host_acceptance_rate, p_host_response_rate, n_days_since, n_bathrooms, f_bathrooms_type, n_beds, n_bedrooms, n_reviews_per_month
+
+```{r first look}
+glimpse(data)
+skim(data)
+
+# where do we have missing variables now?
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+```
