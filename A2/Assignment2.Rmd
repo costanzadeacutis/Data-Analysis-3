@@ -769,3 +769,29 @@ CI_n_accomodate
 save_fig("airbnb-ci-n-accomodate", output, "small")
 
 ```
+
+## Random forest
+### Set up
+I keep the same working data and holdout set, same combinations of variables and I predict 3 models with RF:
+- RF1. basic vars
+- RF2. RF1 + reviews + amenities
+- RFE. equal to M6 (for LASSO)
+```{r RF setup}
+
+#use same train(work) and holdout
+
+dim(data_work)
+dim(data_holdout)
+
+#basic_lev
+#basic_add
+basic_vars <- c(basic_lev,basic_add)
+#reviews
+#amenities
+#X1,X2
+
+predictors_1 <- c(basic_vars) #RF1
+predictors_2 <- c(basic_vars, reviews, amenities) #RF2
+predictors_E <- c(basic_vars, reviews, X1, amenities, X2) #RFE
+
+```
