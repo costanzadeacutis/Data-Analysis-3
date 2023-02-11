@@ -100,3 +100,49 @@ skim(data)
 to_filter <- sapply(data, function(x) sum(is.na(x)))
 to_filter[to_filter > 0]
 ```
+
+## Further cleaning - Deal with NAs
+There are different ways of dealing with missing values:
+1. remove when it is the target variable
+2. remove those variables that have too many NAs and the variable is not that important for the analysis
+3. input values (for beds, assume that the number is the same as the number of accommodates)
+4. replace with median and flag when there are many but the variable is important for the analysis
+```{r cleaning}
+# 1. drop NA if target variable
+data <- data %>%
+  drop_na(price)
+
+# 2. remove when too many
+to_drop <- c("f_bathrooms_type", "p_host_response_rate", "p_host_acceptance_rate", "property_type")
+data <- data %>%
+  select(-one_of(to_drop))
+
+# 3. imput when few, not that important
+#bathrooms
+#beds
+data <- data %>%
+  mutate(
+    n_bathrooms =  ifelse(is.na(n_bathrooms), median(n_bathrooms, na.rm = T), n_bathrooms),
+    n_beds = ifelse(is.na(n_beds), n_accommodates, n_beds)) #assume n_beds=n_accommodates
+
+to_filter <- sapply(data, function(x) sum(is.na(x)))
+to_filter[to_filter > 0]
+
+
+# 4. Replace missing variables + add flags
+#reviews
+#bedrooms
+#days since
+data <- data %>%
+  mutate(flag_bedrooms=ifelse(is.na(n_bedrooms),1, 0),
+    n_bedrooms =  ifelse(is.na(n_bedrooms), median(n_bedrooms, na.rm = T), n_bedrooms),
+    flag_days_since=ifelse(is.na(n_days_since),1, 0),
+    n_days_since =  ifelse(is.na(n_days_since), median(n_days_since, na.rm = T), n_days_since),
+    flag_review_scores_rating=ifelse(is.na(review_scores_rating),1, 0),
+    review_scores_rating =  ifelse(is.na(review_scores_rating), median(review_scores_rating, na.rm = T), review_scores_rating),
+    flag_reviews_per_month=ifelse(is.na(n_reviews_per_month),1, 0),
+    n_reviews_per_month =  ifelse(is.na(n_reviews_per_month), median(n_reviews_per_month, na.rm = T), n_reviews_per_month)
+          )
+table(data$flag_days_since)
+```
+
