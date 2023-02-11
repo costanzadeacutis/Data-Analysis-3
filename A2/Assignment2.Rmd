@@ -771,10 +771,11 @@ save_fig("airbnb-ci-n-accomodate", output, "small")
 ```
 
 ## Random forest
+This is an ensemble method that combines the results of hundreds of regression trees. One of the great advantages of Random forest is that variable selection, interaction picking, and functional form decisions are not needed.
 ### Set up
 I keep the same working data and holdout set, same combinations of variables and I predict 3 models with RF:
 - RF1. basic vars
-- RF2. RF1 + reviews + amenities
+- RF2. RF1 + reviews + amenities (benchmark model, similar to M5 but no interactions or polynomials)
 - RFE. equal to M6 (for LASSO)
 ```{r RF setup}
 
@@ -797,7 +798,11 @@ predictors_E <- c(basic_vars, reviews, X1, amenities, X2) #RFE
 ```
 
 ## Cross-validation
-I perform cross-validated RF using RF1 and RF2, with imputed parameters and autotuning. It emerges that the choice of the parameters do not matter much, but the best combination for the benchmark model (RF2) is 5 observations in terminal nodes and 10 variables at each split. The resulting RSME is 99.7.
+I perform cross-validated RF using RF1 and RF2, with imputed parameters and autotuning. The parameters to be chosen, or to be autotuned, are 
+- number of bootstrap samples (500)
+- number of variables considered in each split (decorrelation - square root of total number of varibles - try 8 10 12)
+- minimum number of observations in terminal nodes of each tree (stopping rule - 5 10 15)
+It emerges that the choice of the parameters do not matter much, but the best combination for the benchmark model (RF2) is 5 observations in terminal nodes and 10 variables at each split. The resulting RSME is 99.7. The autotuned RF performs worse.
 
 ```{r RF CV}
 
@@ -927,11 +932,13 @@ kable(x = result_2, format = "latex", digits = 3) %>%
 
 ## Diagnostics 
 Random forest cannot be interepreted as it is. Diagnostics are possible on the holdout set:
-1. Variable importance plot - show average improvements in fit when variables are used to split the data
+1. Variable importance plot - shows average improvements in fit when variables are used to split the data
  - top 10
  - grouping factor variables
-2. Partial dependence plot
-3. Subsample performance
+2. Partial dependence plot - shows how average predicted price differs for different values of a variable conditional on all other predictors
+3. Subsample performance - for external validity
+The most important variables are number of bathrooms, days in operations, municipi, number of accommodates. Moverover, conditionally on the rest, the average predicted price seems to be close to constant across Municipi, while there is a particular relation between average predicted prices and number or bathrooms, which looks like half of a parabola, i.e. it is far from being linear. Finally, the prediction works best (lower RMSE/mean(price)) for apartment size (number of accommodates), municipi, and entire places, not for private or shared rooms. Hence, the our prediction would be best used for the former types of observations only, while more information is needed to be able to make relevant decisions based on the less well predicted groups.
+
 ```{r}
 
 # Variable Importance Plots 
@@ -947,8 +954,8 @@ group.importance <- function(rf.obj, groups) {
 
 # variable importance plot
 # 1) full varimp plot, full
-# 2) varimp plot grouped
-# 3) varimp plot , top 10
+# 2) varimp plot , top 10
+# 3) varimp plot grouped
 # 4) varimp plot  w copy, top 10
 
 
@@ -1003,21 +1010,15 @@ save_fig("Airbnb-rf-varimp-top10",output, "small")
 
 
 
-# 2) varimp plot grouped
+# 3) varimp plot grouped
 
 # grouped variable importance - keep binaries created off factors together
 
 varnames <- rf_model_2$finalModel$xNames
 f_municipio_varnames <- grep("f_municipio",varnames, value = TRUE)
-#f_cancellation_policy_varnames <- grep("f_cancellation_policy",varnames, value = TRUE)
-#f_bed_type_varnames <- grep("f_bed_type",varnames, value = TRUE)
-#f_property_type_varnames <- grep("f_property_type",varnames, value = TRUE)
 f_room_type_varnames <- grep("f_room_type",varnames, value = TRUE)
 
 groups <- list(f_municipio=f_municipio_varnames,
-               #f_cancellation_policy = f_cancellation_policy_varnames,
-               #f_bed_type = f_bed_type_varnames,
-               #f_property_type = f_property_type_varnames,
                f_room_type = f_room_type_varnames,
                f_bathroom = "n_bathroom",
                n_days_since = "n_days_since",
@@ -1043,7 +1044,6 @@ theme_bg() +
   theme(axis.text.x = element_text(size=4), axis.text.y = element_text(size=4),
         axis.title.x = element_text(size=4), axis.title.y = element_text(size=4))
 rf_model_2_var_imp_grouped_plot
-#save_fig("rf_varimp_grouped1",output, "small")
 save_fig("Airbnb-rf-varimp-group",output, "small")
 
 
@@ -1059,7 +1059,6 @@ pdp_f_muni_plot <- pdp_f_muni %>%
   scale_y_continuous(limits=c(12,150), breaks=seq(120,150, by=5)) +
   theme_bg()
 pdp_f_muni_plot
-#save_fig("rf_pdp_n_accom", output, "small")
 save_fig("Airbnb-rf-pdp-f-municipi", output, "small")
 
 
@@ -1073,7 +1072,6 @@ pdp_n_bathrooms_plot <- pdp_n_bathrooms %>%
   scale_x_continuous(limit=c(1,4), breaks=seq(1,4,1))+
 theme_bg()
 pdp_n_bathrooms_plot
-#save_fig("rf_pdp_roomtype", output, "small")
 save_fig("Airbnb-rf-pdp-bathrooms", output, "small")
 
 # Subsample performance: RMSE / mean(y) 
@@ -1146,6 +1144,8 @@ options(knitr.kable.NA = NULL)
 
 ## Horserace
 Comparing OLS, LASSO and RF RSME 
+- OLS and RF on bechmark model
+- LASSO on extended benchmark model (including interactions)
 RF better than others 
 ```{r, warning=FALSE}
 
@@ -1210,7 +1210,7 @@ final_models <-
 results <- resamples(final_models) %>% summary()
 
 
-# Save output --------------------------------------------------------
+# Save output 
 # Model selection is carried out on this CV RMSE
 
 result_4 <- imap(final_models, ~{
@@ -1222,9 +1222,7 @@ kable(x = result_4, format = "latex", digits = 3, booktabs=TRUE, linesep = "") %
   cat(.,file= paste0(output,"horse_race_of_models_cv_rmse.tex"))
 
 
-
-
-# evaluate preferred model on the holdout set -----------------------------
+# evaluate preferred model on the holdout set
 
 result_5 <- map(final_models, ~{
   RMSE(predict(.x, newdata = data_holdout), data_holdout[["price"]])
