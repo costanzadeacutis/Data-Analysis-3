@@ -78,3 +78,51 @@ data  <- data %>%
            as.numeric(.))
 
 ```
+
+## Constructing the Target
+### Employment
+Ideally, to identify fast-growing firms, I would use employment: firms (with at least 5 or 10 employees, i.e. not too small) would be identified as fast-growing if their employment annualized growing rate were greater than a certain threshold (e.g. 20%). However, the variable for employment, labor_avg, expresses the monthly average employment in one year. I could look at other possible measures of growth, for example sales, but I believe fast growth of employment can better define fast-growing firms: sales could grow for one or two years just due to contingencies and non-structural growth; while, when a firm hires more employees, the expansions entails a more structural/intrinsic growth. 
+Moreover, the variables labor_avg is noisy (there are 121990 NA values out of 236250 total observations, and 316 0 values) but also sales is almost as noisy (72386 NA and 28864 zeros), and the lost in observations is almost the same. Therefore, I choose to proceed with employment.
+
+First, I remove the missing values from labor_avg and I drop observations where labor_avg==0.
+Then, I look at the distribution (log does not change)
+
+```{r}
+
+Hmisc::describe(data$labor_avg)
+#table(data$labor_avg)
+Hmisc::describe(data$sales)
+#table(data$sales)
+
+# drop missing
+data <- data %>%
+  filter(!is.na(labor_avg))
+
+# drop those that are 0
+data <- data %>%
+  filter(labor_avg>0.0069)
+
+
+labor_avg_graph <- ggplot(data, aes(x=labor_avg)) +
+  geom_histogram(binwidth = 0.1, fill = color[1], color = color.outline, alpha = 0.8, size = 0.1) +
+  ylab("count") +
+  xlab("labor_avg") +
+  scale_x_continuous(expand = c(0.00,0.00),limits=c(0,5), breaks = seq(0,5, 0.5)) +
+  theme_bg()
+labor_avg_graph
+
+#ln
+data <- data %>%
+  mutate(ln_labor_avg = log(labor_avg+1))
+
+Hmisc::describe(data$ln_labor_avg)
+
+ln_labor_avg_graph <- ggplot(data, aes(x=ln_labor_avg)) +
+  geom_histogram(binwidth = 0.1, fill = color[1], color = color.outline, alpha = 0.8, size = 0.1) +
+  ylab("count") +
+  xlab("ln_labor_avg") +
+  scale_x_continuous(expand = c(0.00,0.00),limits=c(0,3), breaks = seq(0,3, 0.5)) +
+  theme_bg()
+ln_labor_avg_graph
+
+```
