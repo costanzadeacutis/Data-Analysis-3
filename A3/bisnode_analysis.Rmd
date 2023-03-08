@@ -378,3 +378,38 @@ roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout$best_logit_no_loss
 createRocPlot(roc_obj_holdout, "best_logit_no_loss_roc_plot_holdout")
 ```
 
+#### Confusion table
+Comparing two thresholds (Predict fast_growth if probability > threshold)
+Having a higher threshold leads to 
+```{r}
+# default: the threshold 0.5 is used to convert probabilities to binary classes
+logit_class_prediction <- predict(best_logit_no_loss, newdata = data_holdout)
+summary(logit_class_prediction)
+
+# confusion matrix: summarize different type of errors and successfully predicted cases
+# positive = "yes": explicitly specify the positive case
+cm_object1 <- confusionMatrix(logit_class_prediction, data_holdout$fast_growth_f, positive = "fast_growth")
+cm1 <- cm_object1$table
+cm1
+
+# Apply different thresholds
+
+# 0.5 same as before
+holdout_prediction <-
+  ifelse(data_holdout$best_logit_no_loss_pred < 0.5, "no_fast_growth", "fast_growth") %>%
+  factor(levels = c("no_fast_growth", "fast_growth"))
+cm_object1b <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
+cm1b <- cm_object1b$table
+cm1b
+
+# a sensible choice: mean of predicted probabilities
+mean_predicted_default_prob <- mean(data_holdout$best_logit_no_loss_pred)
+mean_predicted_default_prob
+holdout_prediction <-
+  ifelse(data_holdout$best_logit_no_loss_pred < mean_predicted_default_prob, "no_fast_growth", "fast_growth") %>%
+  factor(levels = c("no_fast_growth", "fast_growth"))
+cm_object2 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
+cm2 <- cm_object2$table
+cm2
+```
+
