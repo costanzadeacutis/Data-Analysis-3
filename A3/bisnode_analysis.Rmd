@@ -42,7 +42,7 @@ options(digits = 3)
 data_in <- "~/subdirectory/Assignment3/A3/A3"
 data_out <- "~/subdirectory/Assignment3/A3/A3/"
 output <- "~/subdirectory/Assignment3/A3/A3/output/"
-create_output_if_doesnt_exist(output)
+#create_output_if_doesnt_exist(output)
 
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -60,4 +60,122 @@ data <- read_rds(paste(data_out,"bisnode_firms_clean.rds", sep = "/"))
 #datasummary_skim(data, type='numeric', histogram = TRUE)
 #datasummary_skim(data, type="categorical")
 ```
+
+## Models
+### Set of variables
+
+```{r}
+rawvars <-  c("curr_assets", "curr_liab", "extra_exp", "extra_inc", "extra_profit_loss", "fixed_assets",
+              "inc_bef_tax", "intang_assets", "inventories", "liq_assets", "material_exp", "personnel_exp",
+              "profit_loss_year", "sales", "share_eq", "subscribed_cap")
+qualityvars <- c("balsheet_flag", "balsheet_length", "balsheet_notfullyear")
+engvar <- c("total_assets_bs", "fixed_assets_bs", "liq_assets_bs", "curr_assets_bs",
+            "share_eq_bs", "subscribed_cap_bs", "intang_assets_bs", "extra_exp_pl",
+            "extra_inc_pl", "extra_profit_loss_pl", "inc_bef_tax_pl", "inventories_pl",
+            "material_exp_pl", "profit_loss_year_pl", "personnel_exp_pl")
+engvar2 <- c("extra_profit_loss_pl_quad", "inc_bef_tax_pl_quad",
+             "profit_loss_year_pl_quad", "share_eq_bs_quad")
+engvar3 <- c(grep("*flag_low$", names(data), value = TRUE),
+             grep("*flag_high$", names(data), value = TRUE),
+             grep("*flag_error$", names(data), value = TRUE),
+             grep("*flag_zero$", names(data), value = TRUE))
+d1 <-  c("d1_sales_mil_log_mod", "d1_sales_mil_log_mod_sq",
+         "flag_low_d1_sales_mil_log", "flag_high_d1_sales_mil_log")
+hr <- c("female", "ceo_age", "flag_high_ceo_age", "flag_low_ceo_age",
+        "flag_miss_ceo_age", "ceo_count", "foreign_management")
+firm <- c("age", "age2", "new", "ind2_cat", "m_region_loc", "urban_m")
+```
+
+### Interactions, set of regressors for logit and LASSO, random forest variables
+
+```{r}
+# interactions for logit, LASSO
+interactions1 <- c("ind2_cat*age", "ind2_cat*age2",
+                   "ind2_cat*d1_sales_mil_log_mod", "ind2_cat*sales_mil_log",
+                   "ind2_cat*ceo_age", "ind2_cat*foreign_management",
+                   "ind2_cat*female",   "ind2_cat*urban_m")
+interactions2 <- c("sales_mil_log*age", "sales_mil_log*female",
+                   "sales_mil_log*profit_loss_year_pl", "sales_mil_log*foreign_management")
+
+# set of regressors for logit (model 1 to 5)
+X1 <- c("sales_mil_log", "sales_mil_log_sq", "d1_sales_mil_log_mod", "profit_loss_year_pl", "ind2_cat")
+X2 <- c("sales_mil_log", "sales_mil_log_sq", "d1_sales_mil_log_mod", "profit_loss_year_pl", "fixed_assets_bs","share_eq_bs","curr_liab_bs ",   "curr_liab_bs_flag_high ", "curr_liab_bs_flag_error",  "age","foreign_management" , "ind2_cat")
+X3 <- c("sales_mil_log", "sales_mil_log_sq", firm, engvar,                   d1)
+X4 <- c("sales_mil_log", "sales_mil_log_sq", firm, engvar, engvar2, engvar3, d1, hr, qualityvars)
+X5 <- c("sales_mil_log", "sales_mil_log_sq", firm, engvar, engvar2, engvar3, d1, hr, qualityvars, interactions1, interactions2)
+
+# for LASSO
+logitvars <- c("sales_mil_log", "sales_mil_log_sq", engvar, engvar2, engvar3, d1, hr, firm, qualityvars, interactions1, interactions2)
+
+# for RF (no interactions, no modified features)
+rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, hr, firm, qualityvars)
+
+```
+
+### Preliminary results
+Fit OLS, GLM models X1, X2, and X4 and compute average marginal effects
+
+```{r, warning=FALSE}
+# Simplest model X1
+ols_modelx1 <- lm(formula(paste0("fast_growth ~", paste0(X1, collapse = " + "))),
+                data = data)
+summary(ols_modelx1)
+
+glm_modelx1 <- glm(formula(paste0("fast_growth ~", paste0(X1, collapse = " + "))),
+                   data = data, family = "binomial")
+summary(glm_modelx1)
+
+
+# Model X2
+glm_modelx2 <- glm(formula(paste0("fast_growth ~", paste0(X2, collapse = " + "))),
+                 data = data, family = "binomial")
+summary(glm_modelx2)
+
+#calculate average marginal effects (dy/dx) for logit
+mx2 <- margins(glm_modelx2)
+
+sum_table <- summary(glm_modelx2) %>%
+  coef() %>%
+  as.data.frame() %>%
+  select(Estimate) %>%
+  mutate(factor = row.names(.)) %>%
+  merge(summary(mx2)[,c("factor","AME")])
+
+kable(x = sum_table, format = "latex", digits = 3,
+      col.names = c("Variable", "Coefficient", "dx/dy"),
+      caption = "Average Marginal Effects (dy/dx) for Logit Model") %>%
+  cat(.,file= paste0(output,"AME_logit_X2.tex"))
+
+
+# baseline model is X4 (all vars, but no interactions)
+
+ols_model <- lm(formula(paste0("fast_growth ~", paste0(X4, collapse = " + "))),
+                data = data)
+summary(ols_model)
+
+glm_model <- glm(formula(paste0("fast_growth ~", paste0(X4, collapse = " + "))),
+                 data = data, family = "binomial")
+summary(glm_model)
+
+#calculate average marginal effects (dy/dx) for logit
+# vce="none" makes it run much faster, here we do not need variances
+
+m <- margins(glm_model, vce = "none")
+
+sum_table2 <- summary(glm_model) %>%
+  coef() %>%
+  as.data.frame() %>%
+  select(Estimate, `Std. Error`) %>%
+  mutate(factor = row.names(.)) %>%
+  merge(summary(m)[,c("factor","AME")])
+
+kable(x = sum_table2, format = "latex", digits = 3,
+      col.names = c("Variable", "Coefficient", "SE", "dx/dy"),
+      caption = "Average Marginal Effects (dy/dx) for Logit Model") %>%
+  cat(.,file= paste0(output,"AME_logit_X4.tex"))
+
+
+```
+
+
 
