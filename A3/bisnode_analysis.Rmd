@@ -51,6 +51,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # A3 ANALYSIS
 
 ## Load data
+Load cleaned data 
 
 ```{r}
 # Use R format so it keeps factor definitions
@@ -63,12 +64,14 @@ data <- read_rds(paste(data_out,"bisnode_firms_clean.rds", sep = "/"))
 
 ## Models
 ### Set of variables
+I group variables in sets 
 
 ```{r}
 rawvars <-  c("curr_assets", "curr_liab", "extra_exp", "extra_inc", "extra_profit_loss", "fixed_assets",
               "inc_bef_tax", "intang_assets", "inventories", "liq_assets", "material_exp", "personnel_exp",
               "profit_loss_year", "sales", "share_eq", "subscribed_cap")
 qualityvars <- c("balsheet_flag", "balsheet_length", "balsheet_notfullyear")
+#financial variables 
 engvar <- c("total_assets_bs", "fixed_assets_bs", "liq_assets_bs", "curr_assets_bs",
             "share_eq_bs", "subscribed_cap_bs", "intang_assets_bs", "extra_exp_pl",
             "extra_inc_pl", "extra_profit_loss_pl", "inc_bef_tax_pl", "inventories_pl",
@@ -79,14 +82,24 @@ engvar3 <- c(grep("*flag_low$", names(data), value = TRUE),
              grep("*flag_high$", names(data), value = TRUE),
              grep("*flag_error$", names(data), value = TRUE),
              grep("*flag_zero$", names(data), value = TRUE))
+#growth sales
 d1 <-  c("d1_sales_mil_log_mod", "d1_sales_mil_log_mod_sq",
          "flag_low_d1_sales_mil_log", "flag_high_d1_sales_mil_log")
+#human resources 
 hr <- c("female", "ceo_age", "flag_high_ceo_age", "flag_low_ceo_age",
         "flag_miss_ceo_age", "ceo_count", "foreign_management")
 firm <- c("age", "age2", "new", "ind2_cat", "m_region_loc", "urban_m")
 ```
 
 ### Interactions, set of regressors for logit and LASSO, random forest variables
+In the following section, I construct 6 different models where the target variable is regressed on
+- Logit X1 (11 predictors): log sales, log sales squared, growth sales, profit/loss, industry category
+- Logit X2 (18): Logit X1 + fixed assets, share eq, current liabilities (and flags), age,            foreign_management, industry category
+- Logit X3 (35): Logit X2 + financial var 1 + flag growth sales
+- Logit X4 (75): Logit X3 + financial var 2 + fin var 3 + human resource + quality var
+- Logit X5 (142): Logit X4 + interactions
+- Logit LASSO: same specification as Logit X5
+Moreover, I will perform also Random Forest: log sales, growth sales + raw var + hr + firm characteristics + quality var
 
 ```{r}
 # interactions for logit, LASSO
@@ -112,73 +125,11 @@ rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, hr, firm, qualityvars)
 
 ```
 
-### Preliminary results
-Fit OLS, GLM models X1, X2, and X4 and compute average marginal effects
-
-```{r, warning=FALSE}
-# Simplest model X1
-ols_modelx1 <- lm(formula(paste0("fast_growth ~", paste0(X1, collapse = " + "))),
-                data = data)
-summary(ols_modelx1)
-
-glm_modelx1 <- glm(formula(paste0("fast_growth ~", paste0(X1, collapse = " + "))),
-                   data = data, family = "binomial")
-summary(glm_modelx1)
-
-
-# Model X2
-glm_modelx2 <- glm(formula(paste0("fast_growth ~", paste0(X2, collapse = " + "))),
-                 data = data, family = "binomial")
-summary(glm_modelx2)
-
-#calculate average marginal effects (dy/dx) for logit
-mx2 <- margins(glm_modelx2)
-
-sum_table <- summary(glm_modelx2) %>%
-  coef() %>%
-  as.data.frame() %>%
-  select(Estimate) %>%
-  mutate(factor = row.names(.)) %>%
-  merge(summary(mx2)[,c("factor","AME")])
-
-kable(x = sum_table, format = "latex", digits = 3,
-      col.names = c("Variable", "Coefficient", "dx/dy"),
-      caption = "Average Marginal Effects (dy/dx) for Logit Model") %>%
-  cat(.,file= paste0(output,"AME_logit_X2.tex"))
-
-
-# baseline model is X4 (all vars, but no interactions)
-
-ols_model <- lm(formula(paste0("fast_growth ~", paste0(X4, collapse = " + "))),
-                data = data)
-summary(ols_model)
-
-glm_model <- glm(formula(paste0("fast_growth ~", paste0(X4, collapse = " + "))),
-                 data = data, family = "binomial")
-summary(glm_model)
-
-#calculate average marginal effects (dy/dx) for logit
-# vce="none" makes it run much faster, here we do not need variances
-
-m <- margins(glm_model, vce = "none")
-
-sum_table2 <- summary(glm_model) %>%
-  coef() %>%
-  as.data.frame() %>%
-  select(Estimate, `Std. Error`) %>%
-  mutate(factor = row.names(.)) %>%
-  merge(summary(m)[,c("factor","AME")])
-
-kable(x = sum_table2, format = "latex", digits = 3,
-      col.names = c("Variable", "Coefficient", "SE", "dx/dy"),
-      caption = "Average Marginal Effects (dy/dx) for Logit Model") %>%
-  cat(.,file= paste0(output,"AME_logit_X4.tex"))
-
-
-```
-
 ## Set up 
-Separate training (80%) and holdout sets (20%)
+I randomly create:
+- Train set (data_work, 80% of the total data)
+- Holdout set (data_holdout, 20% of the total data)
+Then, I look at the target variable in each dataset.
 
 ```{r}
 
@@ -199,6 +150,9 @@ Hmisc::describe(data_holdout
 
 # PART 1.a - Predict probabilities with Logit and LASSO
 ## Logit and Logit Lasso
+I set up a 5-fold cross-validation for model selection on the 5 logit models. Then, I look into LASSO, which is an automatic method to select variables: it shrinks coefficients towards zero of those variables that variables whose inclusion does not improve the fit of the regression. This is equivalent to removing them from the regression. I ran the LASSO algorithm with 5-fold cross-validation for selecting the optimal for the tuning parameter lambda (which gives the weight to the penalty term). The optimal lambda is  0.000464 and the suggested features to be kept are 120: LASSO removed 22 features that were included in Logit X5.
+
+From the summary table, after Logit X2, all average RMSE look very close to each other. To chose the best model among those evaluated, I look at the lowest RMSE in the test set, which corresponds to model Logit X3. While, more complex models as X4 and X5 are overfitting. Logit X3 has a lower average RMSE compared to Logit LASSO and far less predictors, thus it outperforms also LASSO.
 
 ```{r, warning=FALSE}
 # 5 fold cross-validation
@@ -258,17 +212,40 @@ system.time({
 
 tuned_logit_lasso_model <- logit_lasso_model$finalModel
 best_lambda <- logit_lasso_model$bestTune$lambda
+print(best_lambda)
 logit_models[["LASSO"]] <- logit_lasso_model
 lasso_coeffs <- as.matrix(coef(tuned_logit_lasso_model, best_lambda))
+sum(lasso_coeffs != 0)
 write.csv(lasso_coeffs, paste0(output, "lasso_logit_coeffs.csv"))
 
 CV_RMSE_folds[["LASSO"]] <- logit_lasso_model$resample[,c("Resample", "RMSE")]
 
+
+# For each model look at average RMSE
+
+CV_RMSE_1 <- list()
+
+for (model_name in names(logit_models)) {
+  CV_RMSE_1[[model_name]] <- mean(CV_RMSE_folds[[model_name]]$RMSE)
+}
+
+# 6 models, (5 logit and the logit lasso). For each I have a 5-CV RMSE and AUC.
+# Find preferred model based on that
+
+nvars <- lapply(logit_models, FUN = function(x) length(x$coefnames))
+nvars[["LASSO"]] <- sum(lasso_coeffs != 0)
+
+logit_summary <- data.frame("Number of predictors" = unlist(nvars),
+                             "CV RMSE" = unlist(CV_RMSE_1))
+
+kable(x = logit_summary, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Number of predictors","CV RMSE")) %>%
+  cat(.,file= paste0(output, "logit_summary.tex"))
+
 ```
 
-# PART 2.a - classification with no loss function
-## Classification and find best model
-RMSE indicates X3 as the best, AUC indicates X4; I would choose X3 because less then half predictors compared to X4
+### ROC and AUC
+First, I create the ROC curves and calculate the AUC for each fold of both Logit and Logit LASSO models. The ROC curve displays 1-specificity and sensitivity for all possible thresholds for classification (between 0 and 1) and it illustrates the non-linear trade-off between making false positive and false negative errors. The AUC is the area under the ROC curve and is used as a statistic to compare models (the larger the better). Once the AUC is calculated for each fold, I take the average and compare the models. From the table, it can be seen that the AUC, as the RMSE, points at the Logit X3 as the best model.
 
 ```{r, warning=FALSE}
 # Draw ROC Curve and calculate AUC for each folds
@@ -317,10 +294,10 @@ kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.name
 ```
 
 ### Bring best model to holdout
-Picked model X3
-Calculate RMSE on holdout
+After picking Logit X3 as the best model, I bring this model to the holdout set and I calculate RMSE on this subset of the data. The model performs on the holdout as it performs in the training set.
+
 ```{r}
-# Take best model and estimate RMSE on holdout  -------------------------------------------
+# Take best model and estimate RMSE on holdout 
 
 best_logit_no_loss <- logit_models[["X3"]]
 
@@ -329,103 +306,9 @@ data_holdout[,"best_logit_no_loss_pred"] <- logit_predicted_probabilities_holdou
 RMSE(data_holdout[, "best_logit_no_loss_pred", drop=TRUE], data_holdout$fast_growth)
 ```
 
-#### ROC 
-ROC on holdout, discrete and continuous 
 
-```{r}
-# discrete ROC (with thresholds in steps) on holdout 
-thresholds <- seq(0.05, 0.75, by = 0.05)
-
-cm <- list()
-true_positive_rates <- c()
-false_positive_rates <- c()
-for (thr in thresholds) {
-  holdout_prediction <- ifelse(data_holdout[,"best_logit_no_loss_pred"] < thr, "no_fast_growth", "fast_growth") %>%
-    factor(levels = c("no_fast_growth", "fast_growth"))
-  cm_thr <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)$table
-  cm[[as.character(thr)]] <- cm_thr
-  true_positive_rates <- c(true_positive_rates, cm_thr["fast_growth", "fast_growth"] /
-                             (cm_thr["fast_growth", "fast_growth"] + cm_thr["no_fast_growth", "fast_growth"]))
-  false_positive_rates <- c(false_positive_rates, cm_thr["fast_growth", "no_fast_growth"] /
-                              (cm_thr["fast_growth", "no_fast_growth"] + cm_thr["no_fast_growth", "no_fast_growth"]))
-}
-
-tpr_fpr_for_thresholds <- tibble(
-  "threshold" = thresholds,
-  "true_positive_rate" = true_positive_rates,
-  "false_positive_rate" = false_positive_rates
-)
-
-discrete_roc_plot <- ggplot(
-  data = tpr_fpr_for_thresholds,
-  aes(x = false_positive_rate, y = true_positive_rate, color = threshold)) +
-  labs(x = "False positive rate (1 - Specificity)", y = "True positive rate (Sensitivity)") +
-  geom_point(size=2, alpha=0.8) +
-  scale_color_viridis(option = "D", direction = -1) +
-  scale_x_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
-  scale_y_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
-  theme_bg() +
-  theme(legend.position ="right") +
-  theme(legend.title = element_text(size = 4), 
-        legend.text = element_text(size = 4),
-        legend.key.size = unit(.4, "cm")) 
-discrete_roc_plot
-save_fig("discrete_roc_plot", output, "small")
-
-# continuous ROC on holdout with best model (Logit 3)
-
-roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout$best_logit_no_loss_pred)
-
-createRocPlot(roc_obj_holdout, "best_logit_no_loss_roc_plot_holdout")
-```
-
-#### Confusion table
-Comparing two thresholds (Predict fast_growth if probability > threshold)
-Having a higher threshold leads to 
-```{r}
-# default: the threshold 0.5 is used to convert probabilities to binary classes
-logit_class_prediction <- predict(best_logit_no_loss, newdata = data_holdout)
-summary(logit_class_prediction)
-
-# confusion matrix: summarize different type of errors and successfully predicted cases
-# positive = "yes": explicitly specify the positive case
-cm_object1 <- confusionMatrix(logit_class_prediction, data_holdout$fast_growth_f, positive = "fast_growth")
-cm1 <- cm_object1$table
-cm1
-
-# Apply different thresholds
-
-# 0.5 same as before
-holdout_prediction <-
-  ifelse(data_holdout$best_logit_no_loss_pred < 0.5, "no_fast_growth", "fast_growth") %>%
-  factor(levels = c("no_fast_growth", "fast_growth"))
-cm_object1b <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
-cm1b <- cm_object1b$table
-cm1b
-
-# a sensible choice: mean of predicted probabilities
-mean_predicted_default_prob <- mean(data_holdout$best_logit_no_loss_pred)
-mean_predicted_default_prob
-holdout_prediction <-
-  ifelse(data_holdout$best_logit_no_loss_pred < mean_predicted_default_prob, "no_fast_growth", "fast_growth") %>%
-  factor(levels = c("no_fast_growth", "fast_growth"))
-cm_object2 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
-cm2 <- cm_object2$table
-cm2
-```
-
-#### Calibration curve
-```{r}
-
-create_calibration_plot(data_holdout, 
-  file_name = "calibration", 
-  prob_var = "best_logit_no_loss_pred", 
-  actual_var = "fast_growth",
-  n_bins = 10)
-```
-
-# PART 2.b - Classification with loss function
-## Classification and find best model
+# PART 2.a - Classification with loss function
+## Classification Logit and Logit LASSO
 Loss function
 Aim is to find fast-growing firms for investment decisions: loss in terms of returns is far greater than the cost in investment
 FN = predict no fast growth and instead fast growing -> 5 000
@@ -673,7 +556,7 @@ expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/lengt
 expected_loss_holdout
 ```
 
-# PART 2.c - Classification forest
+# PART 2.b - Classification forest
 
 
 ```{r}
@@ -729,4 +612,4 @@ kable(x = summary_results, format = "latex", booktabs=TRUE,  digits = 3, row.nam
       linesep = "", col.names = c("Number of predictors", "CV RMSE", "CV AUC",
                                   "CV threshold", "CV expected Loss")) %>%
   cat(.,file= paste0(output, "summary_results.tex"))
-`
+```
