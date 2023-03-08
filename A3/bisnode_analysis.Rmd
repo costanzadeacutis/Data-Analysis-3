@@ -423,4 +423,72 @@ create_calibration_plot(data_holdout,
   n_bins = 10)
 ```
 
+# PART 2.b - Classification with loss function
+## Classification and find best model
+Loss function
+Aim is to find fast-growing firms for investment decisions: loss in terms of returns is far greater than the cost in investment
+FN = predict no fast growth and instead fast growing -> 5 000
+FP = ... -> 1 000
+
+```{r, warning=FALSE}
+# Introduce loss function
+# relative cost of of a false negative classification (as compared with a false positive classification)
+FP=1
+FN=5
+cost = FN/FP
+# the prevalence, or the proportion of cases in the population (n.cases/(n.controls+n.cases))
+prevelance = sum(data_train$fast_growth)/length(data_train$fast_growth)
+
+# Draw ROC Curve and find optimal threshold with loss function 
+
+best_tresholds <- list()
+expected_loss <- list()
+logit_cv_rocs <- list()
+logit_cv_threshold <- list()
+logit_cv_expected_loss <- list()
+
+for (model_name in names(logit_models)) {
+
+  model <- logit_models[[model_name]]
+  colname <- paste0(model_name,"_prediction")
+
+  best_tresholds_cv <- list()
+  expected_loss_cv <- list()
+
+  for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
+    cv_fold <-
+      model$pred %>%
+      filter(Resample == fold)
+
+    roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
+    best_treshold <- coords(roc_obj, "best", ret="all", transpose = FALSE,
+                            best.method="youden", best.weights=c(cost, prevelance))
+    best_tresholds_cv[[fold]] <- best_treshold$threshold
+    expected_loss_cv[[fold]] <- (best_treshold$fp*FP + best_treshold$fn*FN)/length(cv_fold$fast_growth)
+  }
+
+  # average
+  best_tresholds[[model_name]] <- mean(unlist(best_tresholds_cv))
+  expected_loss[[model_name]] <- mean(unlist(expected_loss_cv))
+
+  # for fold #5
+  logit_cv_rocs[[model_name]] <- roc_obj
+  logit_cv_threshold[[model_name]] <- best_treshold
+  logit_cv_expected_loss[[model_name]] <- expected_loss_cv[[fold]]
+
+  }
+
+logit_summary2 <- data.frame("Avg of optimal thresholds" = unlist(best_tresholds),
+                             "Threshold for Fold5" = sapply(logit_cv_threshold, function(x) {x$threshold}),
+                             "Avg expected loss" = unlist(expected_loss),
+                             "Expected loss for Fold5" = unlist(logit_cv_expected_loss))
+
+kable(x = logit_summary2, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Avg of optimal thresholds","Threshold for fold #5",
+                                  "Avg expected loss","Expected loss for fold #5")) %>%
+  cat(.,file= paste0(output, "logit_summary2.tex"))
+
+
+
+```
 
