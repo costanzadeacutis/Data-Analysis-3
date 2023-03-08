@@ -179,3 +179,21 @@ data <- data %>%
          d1_sales_mil_log = ifelse(is.na(d1_sales_mil_log), 0, d1_sales_mil_log))
 ```
 
+## Cross section
+I retain observations for 2013 for firms that are alive, and that have sales between 1000 and 10m euros. Moreover, I remove those firms that have missing values for fast_growth (these are the new firms that do not have employment data for 2012).
+
+```{r}
+# look at cross section
+#growth based on (2013-2012)/2012
+data <- data %>%
+  filter((year==2013) & (status_alive==1))%>%
+  # look at firms below 10m euro revenues and above 1000 euros
+  filter(!(sales_mil > 10)) %>%
+  filter(!(sales_mil < 0.001))
+
+
+Hmisc::describe(data$fast_growth)
+
+data <- data %>%
+  filter(!is.na(fast_growth))
+```
