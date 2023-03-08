@@ -266,164 +266,8 @@ CV_RMSE_folds[["LASSO"]] <- logit_lasso_model$resample[,c("Resample", "RMSE")]
 
 ```
 
-# PART 2.a - classification with no loss function
-## Classification and find best model
-RMSE indicates X3 as the best, AUC indicates X4; I would choose X3 because less then half predictors compared to X4
 
-```{r, warning=FALSE}
-# Draw ROC Curve and calculate AUC for each folds
-CV_AUC_folds <- list()
-
-for (model_name in names(logit_models)) {
-
-  auc <- list()
-  model <- logit_models[[model_name]]
-  for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
-    cv_fold <-
-      model$pred %>%
-      filter(Resample == fold)
-
-    roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
-    auc[[fold]] <- as.numeric(roc_obj$auc)
-  }
-
-  CV_AUC_folds[[model_name]] <- data.frame("Resample" = names(auc),
-                                              "AUC" = unlist(auc))
-}
-
-# For each model: average RMSE and average AUC for models
-
-CV_RMSE <- list()
-CV_AUC <- list()
-
-for (model_name in names(logit_models)) {
-  CV_RMSE[[model_name]] <- mean(CV_RMSE_folds[[model_name]]$RMSE)
-  CV_AUC[[model_name]] <- mean(CV_AUC_folds[[model_name]]$AUC)
-}
-
-# 6 models, (5 logit and the logit lasso). For each I have a 5-CV RMSE and AUC.
-# Find preferred model based on that
-
-nvars <- lapply(logit_models, FUN = function(x) length(x$coefnames))
-nvars[["LASSO"]] <- sum(lasso_coeffs != 0)
-
-logit_summary1 <- data.frame("Number of predictors" = unlist(nvars),
-                             "CV RMSE" = unlist(CV_RMSE),
-                             "CV AUC" = unlist(CV_AUC))
-
-kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
-      linesep = "", col.names = c("Number of predictors","CV RMSE","CV AUC")) %>%
-  cat(.,file= paste0(output, "logit_summary1.tex"))
-```
-### Bring best model to holdout
-Picked model X3
-Calculate RMSE on holdout
-```{r}
-# Take best model and estimate RMSE on holdout  -------------------------------------------
-
-best_logit_no_loss <- logit_models[["X3"]]
-
-logit_predicted_probabilities_holdout <- predict(best_logit_no_loss, newdata = data_holdout, type = "prob")
-data_holdout[,"best_logit_no_loss_pred"] <- logit_predicted_probabilities_holdout[,"fast_growth"]
-RMSE(data_holdout[, "best_logit_no_loss_pred", drop=TRUE], data_holdout$fast_growth)
-```
-
-#### ROC 
-ROC on holdout, discrete and continuous 
-
-```{r}
-# discrete ROC (with thresholds in steps) on holdout 
-thresholds <- seq(0.05, 0.75, by = 0.05)
-
-cm <- list()
-true_positive_rates <- c()
-false_positive_rates <- c()
-for (thr in thresholds) {
-  holdout_prediction <- ifelse(data_holdout[,"best_logit_no_loss_pred"] < thr, "no_fast_growth", "fast_growth") %>%
-    factor(levels = c("no_fast_growth", "fast_growth"))
-  cm_thr <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)$table
-  cm[[as.character(thr)]] <- cm_thr
-  true_positive_rates <- c(true_positive_rates, cm_thr["fast_growth", "fast_growth"] /
-                             (cm_thr["fast_growth", "fast_growth"] + cm_thr["no_fast_growth", "fast_growth"]))
-  false_positive_rates <- c(false_positive_rates, cm_thr["fast_growth", "no_fast_growth"] /
-                              (cm_thr["fast_growth", "no_fast_growth"] + cm_thr["no_fast_growth", "no_fast_growth"]))
-}
-
-tpr_fpr_for_thresholds <- tibble(
-  "threshold" = thresholds,
-  "true_positive_rate" = true_positive_rates,
-  "false_positive_rate" = false_positive_rates
-)
-
-discrete_roc_plot <- ggplot(
-  data = tpr_fpr_for_thresholds,
-  aes(x = false_positive_rate, y = true_positive_rate, color = threshold)) +
-  labs(x = "False positive rate (1 - Specificity)", y = "True positive rate (Sensitivity)") +
-  geom_point(size=2, alpha=0.8) +
-  scale_color_viridis(option = "D", direction = -1) +
-  scale_x_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
-  scale_y_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
-  theme_bg() +
-  theme(legend.position ="right") +
-  theme(legend.title = element_text(size = 4), 
-        legend.text = element_text(size = 4),
-        legend.key.size = unit(.4, "cm")) 
-discrete_roc_plot
-save_fig("discrete_roc_plot", output, "small")
-
-# continuous ROC on holdout with best model (Logit 3)
-
-roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout$best_logit_no_loss_pred)
-
-createRocPlot(roc_obj_holdout, "best_logit_no_loss_roc_plot_holdout")
-```
-
-#### Confusion table
-Comparing two thresholds (Predict fast_growth if probability > threshold)
-Having a higher threshold leads to 
-```{r}
-# default: the threshold 0.5 is used to convert probabilities to binary classes
-logit_class_prediction <- predict(best_logit_no_loss, newdata = data_holdout)
-summary(logit_class_prediction)
-
-# confusion matrix: summarize different type of errors and successfully predicted cases
-# positive = "yes": explicitly specify the positive case
-cm_object1 <- confusionMatrix(logit_class_prediction, data_holdout$fast_growth_f, positive = "fast_growth")
-cm1 <- cm_object1$table
-cm1
-
-# Apply different thresholds
-
-# 0.5 same as before
-holdout_prediction <-
-  ifelse(data_holdout$best_logit_no_loss_pred < 0.5, "no_fast_growth", "fast_growth") %>%
-  factor(levels = c("no_fast_growth", "fast_growth"))
-cm_object1b <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
-cm1b <- cm_object1b$table
-cm1b
-
-# a sensible choice: mean of predicted probabilities
-mean_predicted_default_prob <- mean(data_holdout$best_logit_no_loss_pred)
-mean_predicted_default_prob
-holdout_prediction <-
-  ifelse(data_holdout$best_logit_no_loss_pred < mean_predicted_default_prob, "no_fast_growth", "fast_growth") %>%
-  factor(levels = c("no_fast_growth", "fast_growth"))
-cm_object2 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
-cm2 <- cm_object2$table
-cm2
-```
-
-#### Calibration curve
-```{r}
-
-create_calibration_plot(data_holdout, 
-  file_name = "calibration", 
-  prob_var = "best_logit_no_loss_pred", 
-  actual_var = "fast_growth",
-  n_bins = 10)
-```
-
-# PART 2.b - Classification with loss function
+# PART 2 - Classification with loss function
 ## Classification and find best model
 Loss function
 Aim is to find fast-growing firms for investment decisions: loss in terms of returns is far greater than the cost in investment
@@ -547,7 +391,6 @@ cm_object3 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
 cm3 <- cm_object3$table
 cm3
 ```
-
 
 
 
@@ -704,4 +547,198 @@ fp <- sum(data_holdout$rf_f_prediction_class == "fast_growth" & data_holdout$fas
 fn <- sum(data_holdout$rf_f_prediction_class == "no_fast_growth" & data_holdout$fast_growth_f == "fast_growth")
 (fp*FP + fn*FN)/length(data_holdout$fast_growth)
 
+```
+
+# SUMMARY
+```{r}
+# Summary results
+
+nvars[["rf_p"]] <- length(rfvars)
+
+summary_results <- data.frame("Number of predictors" = unlist(nvars),
+                              "CV RMSE" = unlist(CV_RMSE),
+                              "CV AUC" = unlist(CV_AUC),
+                              "CV threshold" = unlist(best_tresholds),
+                              "CV expected Loss" = unlist(expected_loss))
+
+model_names <- c("Logit X1", "Logit X3",
+                 "Logit LASSO","RF probability")
+summary_results <- summary_results %>%
+  filter(rownames(.) %in% c("X1", "X3", "LASSO", "rf_p"))
+rownames(summary_results) <- model_names
+
+kable(x = summary_results, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Number of predictors", "CV RMSE", "CV AUC",
+                                  "CV threshold", "CV expected Loss")) %>%
+  cat(.,file= paste0(output, "summary_results.tex"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Extra
+
+# PART 2.b - classification with no loss function
+## Classification and find best model
+RMSE indicates X3 as the best, AUC indicates X4; I would choose X3 because less then half predictors compared to X4
+
+```{r, warning=FALSE}
+# Draw ROC Curve and calculate AUC for each folds
+CV_AUC_folds <- list()
+
+for (model_name in names(logit_models)) {
+
+  auc <- list()
+  model <- logit_models[[model_name]]
+  for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
+    cv_fold <-
+      model$pred %>%
+      filter(Resample == fold)
+
+    roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
+    auc[[fold]] <- as.numeric(roc_obj$auc)
+  }
+
+  CV_AUC_folds[[model_name]] <- data.frame("Resample" = names(auc),
+                                              "AUC" = unlist(auc))
+}
+
+# For each model: average RMSE and average AUC for models
+
+CV_RMSE <- list()
+CV_AUC <- list()
+
+for (model_name in names(logit_models)) {
+  CV_RMSE[[model_name]] <- mean(CV_RMSE_folds[[model_name]]$RMSE)
+  CV_AUC[[model_name]] <- mean(CV_AUC_folds[[model_name]]$AUC)
+}
+
+# 6 models, (5 logit and the logit lasso). For each I have a 5-CV RMSE and AUC.
+# Find preferred model based on that
+
+nvars <- lapply(logit_models, FUN = function(x) length(x$coefnames))
+nvars[["LASSO"]] <- sum(lasso_coeffs != 0)
+
+logit_summary1 <- data.frame("Number of predictors" = unlist(nvars),
+                             "CV RMSE" = unlist(CV_RMSE),
+                             "CV AUC" = unlist(CV_AUC))
+
+kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Number of predictors","CV RMSE","CV AUC")) %>%
+  cat(.,file= paste0(output, "logit_summary1.tex"))
+```
+### Bring best model to holdout
+Picked model X3
+Calculate RMSE on holdout
+```{r}
+# Take best model and estimate RMSE on holdout  -------------------------------------------
+
+best_logit_no_loss <- logit_models[["X3"]]
+
+logit_predicted_probabilities_holdout <- predict(best_logit_no_loss, newdata = data_holdout, type = "prob")
+data_holdout[,"best_logit_no_loss_pred"] <- logit_predicted_probabilities_holdout[,"fast_growth"]
+RMSE(data_holdout[, "best_logit_no_loss_pred", drop=TRUE], data_holdout$fast_growth)
+```
+
+#### ROC 
+ROC on holdout, discrete and continuous 
+
+```{r}
+# discrete ROC (with thresholds in steps) on holdout 
+thresholds <- seq(0.05, 0.75, by = 0.05)
+
+cm <- list()
+true_positive_rates <- c()
+false_positive_rates <- c()
+for (thr in thresholds) {
+  holdout_prediction <- ifelse(data_holdout[,"best_logit_no_loss_pred"] < thr, "no_fast_growth", "fast_growth") %>%
+    factor(levels = c("no_fast_growth", "fast_growth"))
+  cm_thr <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)$table
+  cm[[as.character(thr)]] <- cm_thr
+  true_positive_rates <- c(true_positive_rates, cm_thr["fast_growth", "fast_growth"] /
+                             (cm_thr["fast_growth", "fast_growth"] + cm_thr["no_fast_growth", "fast_growth"]))
+  false_positive_rates <- c(false_positive_rates, cm_thr["fast_growth", "no_fast_growth"] /
+                              (cm_thr["fast_growth", "no_fast_growth"] + cm_thr["no_fast_growth", "no_fast_growth"]))
+}
+
+tpr_fpr_for_thresholds <- tibble(
+  "threshold" = thresholds,
+  "true_positive_rate" = true_positive_rates,
+  "false_positive_rate" = false_positive_rates
+)
+
+discrete_roc_plot <- ggplot(
+  data = tpr_fpr_for_thresholds,
+  aes(x = false_positive_rate, y = true_positive_rate, color = threshold)) +
+  labs(x = "False positive rate (1 - Specificity)", y = "True positive rate (Sensitivity)") +
+  geom_point(size=2, alpha=0.8) +
+  scale_color_viridis(option = "D", direction = -1) +
+  scale_x_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
+  scale_y_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
+  theme_bg() +
+  theme(legend.position ="right") +
+  theme(legend.title = element_text(size = 4), 
+        legend.text = element_text(size = 4),
+        legend.key.size = unit(.4, "cm")) 
+discrete_roc_plot
+save_fig("discrete_roc_plot", output, "small")
+
+# continuous ROC on holdout with best model (Logit 3)
+
+roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout$best_logit_no_loss_pred)
+
+createRocPlot(roc_obj_holdout, "best_logit_no_loss_roc_plot_holdout")
+```
+
+#### Confusion table
+Comparing two thresholds (Predict fast_growth if probability > threshold)
+Having a higher threshold leads to 
+```{r}
+# default: the threshold 0.5 is used to convert probabilities to binary classes
+logit_class_prediction <- predict(best_logit_no_loss, newdata = data_holdout)
+summary(logit_class_prediction)
+
+# confusion matrix: summarize different type of errors and successfully predicted cases
+# positive = "yes": explicitly specify the positive case
+cm_object1 <- confusionMatrix(logit_class_prediction, data_holdout$fast_growth_f, positive = "fast_growth")
+cm1 <- cm_object1$table
+cm1
+
+# Apply different thresholds
+
+# 0.5 same as before
+holdout_prediction <-
+  ifelse(data_holdout$best_logit_no_loss_pred < 0.5, "no_fast_growth", "fast_growth") %>%
+  factor(levels = c("no_fast_growth", "fast_growth"))
+cm_object1b <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
+cm1b <- cm_object1b$table
+cm1b
+
+# a sensible choice: mean of predicted probabilities
+mean_predicted_default_prob <- mean(data_holdout$best_logit_no_loss_pred)
+mean_predicted_default_prob
+holdout_prediction <-
+  ifelse(data_holdout$best_logit_no_loss_pred < mean_predicted_default_prob, "no_fast_growth", "fast_growth") %>%
+  factor(levels = c("no_fast_growth", "fast_growth"))
+cm_object2 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
+cm2 <- cm_object2$table
+cm2
+```
+
+#### Calibration curve
+```{r}
+
+create_calibration_plot(data_holdout, 
+  file_name = "calibration", 
+  prob_var = "best_logit_no_loss_pred", 
+  actual_var = "fast_growth",
+  n_bins = 10)
 ```
