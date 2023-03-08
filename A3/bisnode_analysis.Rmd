@@ -266,7 +266,7 @@ CV_RMSE_folds[["LASSO"]] <- logit_lasso_model$resample[,c("Resample", "RMSE")]
 
 ```
 
-# PART 1 - classification with no loss function
+# PART 2.a - classification with no loss function
 ## Classification and find best model
 RMSE indicates X3 as the best, AUC indicates X4; I would choose X3 because less then half predictors compared to X4
 
@@ -412,4 +412,15 @@ cm_object2 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
 cm2 <- cm_object2$table
 cm2
 ```
+
+#### Calibration curve
+```{r}
+
+create_calibration_plot(data_holdout, 
+  file_name = "calibration", 
+  prob_var = "best_logit_no_loss_pred", 
+  actual_var = "fast_growth",
+  n_bins = 10)
+```
+
 
