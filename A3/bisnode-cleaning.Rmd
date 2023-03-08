@@ -413,3 +413,12 @@ graph_4
 save_fig("graph_4", output, "small")
 
 ```
+
+## Save data
+
+```{r}
+#datasummary_skim(data, type="numeric")
+
+write_csv(data,paste0(data_out,"bisnode_firms_clean.csv"))
+write_rds(data,paste0(data_out,"bisnode_firms_clean.rds"))
+```
