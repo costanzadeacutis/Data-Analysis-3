@@ -488,7 +488,23 @@ kable(x = logit_summary2, format = "latex", booktabs=TRUE,  digits = 3, row.name
                                   "Avg expected loss","Expected loss for fold #5")) %>%
   cat(.,file= paste0(output, "logit_summary2.tex"))
 
+```
 
+### Plots
+```{r}
+# Create plots based on Fold5 in CV 
+
+for (model_name in names(logit_cv_rocs)) {
+
+  r <- logit_cv_rocs[[model_name]]
+  best_coords <- logit_cv_threshold[[model_name]]
+  createLossPlot(r, best_coords,
+                 paste0(model_name, "_loss_plot"))
+  createRocPlotWithOptimal(r, best_coords,
+                           paste0(model_name, "_roc_plot"))
+}
 
 ```
+
+
 
