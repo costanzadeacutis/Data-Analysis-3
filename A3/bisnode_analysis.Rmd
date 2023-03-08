@@ -266,4 +266,54 @@ CV_RMSE_folds[["LASSO"]] <- logit_lasso_model$resample[,c("Resample", "RMSE")]
 
 ```
 
+# PART 1 - classification with no loss function
+## Classification and find best model
+RMSE indicates X3 as the best, AUC indicates X4; I would choose X3 because less then half predictors compared to X4
+
+```{r, warning=FALSE}
+# Draw ROC Curve and calculate AUC for each folds
+CV_AUC_folds <- list()
+
+for (model_name in names(logit_models)) {
+
+  auc <- list()
+  model <- logit_models[[model_name]]
+  for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
+    cv_fold <-
+      model$pred %>%
+      filter(Resample == fold)
+
+    roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
+    auc[[fold]] <- as.numeric(roc_obj$auc)
+  }
+
+  CV_AUC_folds[[model_name]] <- data.frame("Resample" = names(auc),
+                                              "AUC" = unlist(auc))
+}
+
+# For each model: average RMSE and average AUC for models ----------------------------------
+
+CV_RMSE <- list()
+CV_AUC <- list()
+
+for (model_name in names(logit_models)) {
+  CV_RMSE[[model_name]] <- mean(CV_RMSE_folds[[model_name]]$RMSE)
+  CV_AUC[[model_name]] <- mean(CV_AUC_folds[[model_name]]$AUC)
+}
+
+# We have 6 models, (5 logit and the logit lasso). For each we have a 5-CV RMSE and AUC.
+# We pick our preferred model based on that. -----------------------------------------------
+
+nvars <- lapply(logit_models, FUN = function(x) length(x$coefnames))
+nvars[["LASSO"]] <- sum(lasso_coeffs != 0)
+
+logit_summary1 <- data.frame("Number of predictors" = unlist(nvars),
+                             "CV RMSE" = unlist(CV_RMSE),
+                             "CV AUC" = unlist(CV_AUC))
+
+kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Number of predictors","CV RMSE","CV AUC")) %>%
+  cat(.,file= paste0(output, "logit_summary1.tex"))
+```
+
 
