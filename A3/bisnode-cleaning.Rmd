@@ -331,3 +331,85 @@ data <- data %>%
 table(data$fast_growth_f)
 ```
 
+## Graphical analysis
+### Sales
+
+```{r}
+# Sales
+data <- data %>%
+  mutate(sales_mil_log_sq=sales_mil_log^2)
+
+graph_1 <- ggplot(data = data, aes(x=sales_mil_log, y=as.numeric(fast_growth))) +
+  geom_point(size=2,  shape=20, stroke=2, fill="blue", color="blue") +
+  geom_smooth(method = "lm", formula = y ~ poly(x,2), color=color[4], se = F, size=1)+
+  geom_smooth(method="loess", se=F, colour=color[5], size=1.5, span=0.9) +
+  labs(x = "sales_mil_log",y = "fast_growth") +
+  theme_bg()
+graph_1
+save_fig("graph_1", output, "small")
+
+
+ols_s <- lm(fast_growth~sales_mil_log+sales_mil_log_sq,
+                data = data)
+summary(ols_s)
+
+# Sales change
+# lowess
+Hmisc::describe(data$d1_sales_mil_log) # no missing
+
+graph_2<-ggplot(data = data, aes(x=d1_sales_mil_log, y=as.numeric(fast_growth))) +
+  geom_point(size=0.1,  shape=20, stroke=2, fill=color[2], color=color[2]) +
+  geom_smooth(method="loess", se=F, colour=color[1], size=1.5, span=0.9) +
+ labs(x = "Growth rate (Diff of ln sales)",y = "fast_growth") +
+ theme_bg() +
+ scale_x_continuous(limits = c(-7,10), breaks = seq(-7,10, 5))
+graph_2
+save_fig("graph_2", output, "small")
+
+
+# Winsorization
+# generate variables
+Hmisc::describe(data$d1_sales_mil_log)
+#very few firms outside -1,1 range
+data <- data %>%
+  mutate(flag_low_d1_sales_mil_log = ifelse(d1_sales_mil_log < -1, 1, 0),
+         flag_high_d1_sales_mil_log = ifelse(d1_sales_mil_log > 1, 1, 0),
+         d1_sales_mil_log_mod = ifelse(d1_sales_mil_log < -1, -1,
+                                       ifelse(d1_sales_mil_log > 1, 1, d1_sales_mil_log)),
+         d1_sales_mil_log_mod_sq = d1_sales_mil_log_mod^2
+         )
+
+# no more imputation, drop obs if key vars missing
+data <- data %>%
+  filter(!is.na(liq_assets_bs),!is.na(foreign), !is.na(ind))
+
+# drop missing
+data <- data %>%
+  filter(!is.na(age),!is.na(foreign), !is.na(material_exp_pl), !is.na(m_region_loc))
+Hmisc::describe(data$age)
+
+# drop unused factor levels
+data <- data %>%
+  mutate_at(vars(colnames(data)[sapply(data, is.factor)]), funs(fct_drop))
+
+Hmisc::describe(data$d1_sales_mil_log_mod)
+
+graph_3<-ggplot(data = data, aes(x=d1_sales_mil_log_mod, y=as.numeric(fast_growth))) +
+  geom_point(size=0.1,  shape=20, stroke=2, fill=color[2], color=color[2]) +
+  geom_smooth(method="loess", se=F, colour=color[1], size=1.5, span=0.9) +
+  labs(x = "Growth rate (Diff of ln sales)",y = "fast_growth") +
+  theme_bg() +
+  scale_x_continuous(limits = c(-1,1), breaks = seq(-1,1, 0.5))
+graph_3
+save_fig("graph_3", output, "small")
+
+graph_4<-ggplot(data = data, aes(x=d1_sales_mil_log, y=d1_sales_mil_log_mod)) +
+  geom_point(size=0.1,  shape=20, stroke=2, fill=color[2], color=color[2]) +
+  labs(x = "Growth rate (Diff of ln sales) (original)",y = "Growth rate (Diff of ln sales) (winsorized)") +
+  theme_bg() +
+  scale_x_continuous(limits = c(-7,10), breaks = seq(-7,10, 1)) +
+scale_y_continuous(limits = c(-3,3), breaks = seq(-3,3, 1))
+graph_4
+save_fig("graph_4", output, "small")
+
+```
