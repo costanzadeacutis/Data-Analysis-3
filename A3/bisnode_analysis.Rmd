@@ -197,7 +197,7 @@ Hmisc::describe(data_holdout
                 $fast_growth_f)
 ```
 
-# PART 1 - Predict probabilities
+# PART 1.a - Predict probabilities with Logit and LASSO
 ## Logit and Logit Lasso
 
 ```{r, warning=FALSE}
@@ -546,6 +546,110 @@ holdout_prediction <-
 cm_object3 <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)
 cm3 <- cm_object3$table
 cm3
+```
+
+
+
+
+# PART 1.b - Predict probabilities with Random Forest
+## RF
+
+
+```{r}
+# Probability forest
+# Split by gini, ratio of 1's in each tree, average over trees
+
+# 5 fold cross-validation
+
+train_control <- trainControl(
+  method = "cv",
+  n = 5,
+  classProbs = TRUE, # same as probability = TRUE in ranger
+  summaryFunction = twoClassSummaryExtended,
+  savePredictions = TRUE
+)
+train_control$verboseIter <- TRUE
+
+tune_grid <- expand.grid(
+  .mtry = c(5, 6, 7),
+  .splitrule = "gini",
+  .min.node.size = c(10, 15)
+)
+
+# getModelInfo("ranger")
+set.seed(13505)
+rf_model_p <- train(
+  formula(paste0("fast_growth_f ~ ", paste0(rfvars , collapse = " + "))),
+  method = "ranger",
+  data = data_train,
+  tuneGrid = tune_grid,
+  trControl = train_control
+)
+
+rf_model_p$results
+
+best_mtry <- rf_model_p$bestTune$mtry
+best_min_node_size <- rf_model_p$bestTune$min.node.size
+
+# Get average (ie over the folds) RMSE and AUC ------------------------------------
+CV_RMSE_folds[["rf_p"]] <- rf_model_p$resample[,c("Resample", "RMSE")]
+
+auc <- list()
+for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
+  cv_fold <-
+    rf_model_p$pred %>%
+    filter(Resample == fold)
+
+  roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
+  auc[[fold]] <- as.numeric(roc_obj$auc)
+}
+CV_AUC_folds[["rf_p"]] <- data.frame("Resample" = names(auc),
+                                         "AUC" = unlist(auc))
+
+CV_RMSE[["rf_p"]] <- mean(CV_RMSE_folds[["rf_p"]]$RMSE)
+CV_AUC[["rf_p"]] <- mean(CV_AUC_folds[["rf_p"]]$AUC)
+
+# Now use loss function and search for best thresholds and expected loss over folds
+best_tresholds_cv <- list()
+expected_loss_cv <- list()
+
+for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
+  cv_fold <-
+    rf_model_p$pred %>%
+    filter(mtry == best_mtry,
+           min.node.size == best_min_node_size,
+           Resample == fold)
+
+  roc_obj <- roc(cv_fold$obs, cv_fold$fast_growth)
+  best_treshold <- coords(roc_obj, "best", ret="all", transpose = FALSE,
+                          best.method="youden", best.weights=c(cost, prevelance))
+  best_tresholds_cv[[fold]] <- best_treshold$threshold
+  expected_loss_cv[[fold]] <- (best_treshold$fp*FP + best_treshold$fn*FN)/length(cv_fold$fast_growth)
+}
+
+# average
+best_tresholds[["rf_p"]] <- mean(unlist(best_tresholds_cv))
+expected_loss[["rf_p"]] <- mean(unlist(expected_loss_cv))
+
+
+rf_summary <- data.frame("CV RMSE" = CV_RMSE[["rf_p"]],
+                         "CV AUC" = CV_AUC[["rf_p"]],
+                         "Avg of optimal thresholds" = best_tresholds[["rf_p"]],
+                         "Threshold for Fold5" = best_treshold$threshold,
+                         "Avg expected loss" = expected_loss[["rf_p"]],
+                         "Expected loss for Fold5" = expected_loss_cv[[fold]])
+
+kable(x = rf_summary, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("CV RMSE", "CV AUC",
+                                  "Avg of optimal thresholds","Threshold for fold #5",
+                                  "Avg expected loss","Expected loss for fold #5")) %>%
+  cat(.,file= paste0(output, "rf_summary.tex"))
+
+# Create plots - this is for Fold5
+
+createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot")
+createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot")
+
 ```
 
 
