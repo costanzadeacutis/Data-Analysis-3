@@ -520,6 +520,21 @@ data_holdout[,"best_logit_with_loss_pred"] <- logit_predicted_probabilities_hold
 
 ```
 
+#### ROC and expected loss
+
+```{r}
+# ROC curve on holdout
+roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout[, "best_logit_with_loss_pred", drop=TRUE])
+
+# Get expected loss on holdout
+holdout_treshold <- coords(roc_obj_holdout, x = best_logit_optimal_treshold, input= "threshold",
+                           ret="all", transpose = FALSE)
+expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/length(data_holdout$fast_growth)
+expected_loss_holdout
+
+
+```
+
 
 
 
