@@ -328,3 +328,53 @@ data_holdout[,"best_logit_no_loss_pred"] <- logit_predicted_probabilities_holdou
 RMSE(data_holdout[, "best_logit_no_loss_pred", drop=TRUE], data_holdout$fast_growth)
 ```
 
+#### ROC 
+ROC on holdout, discrete and continuous 
+
+```{r}
+# discrete ROC (with thresholds in steps) on holdout 
+thresholds <- seq(0.05, 0.75, by = 0.05)
+
+cm <- list()
+true_positive_rates <- c()
+false_positive_rates <- c()
+for (thr in thresholds) {
+  holdout_prediction <- ifelse(data_holdout[,"best_logit_no_loss_pred"] < thr, "no_fast_growth", "fast_growth") %>%
+    factor(levels = c("no_fast_growth", "fast_growth"))
+  cm_thr <- confusionMatrix(holdout_prediction,data_holdout$fast_growth_f)$table
+  cm[[as.character(thr)]] <- cm_thr
+  true_positive_rates <- c(true_positive_rates, cm_thr["fast_growth", "fast_growth"] /
+                             (cm_thr["fast_growth", "fast_growth"] + cm_thr["no_fast_growth", "fast_growth"]))
+  false_positive_rates <- c(false_positive_rates, cm_thr["fast_growth", "no_fast_growth"] /
+                              (cm_thr["fast_growth", "no_fast_growth"] + cm_thr["no_fast_growth", "no_fast_growth"]))
+}
+
+tpr_fpr_for_thresholds <- tibble(
+  "threshold" = thresholds,
+  "true_positive_rate" = true_positive_rates,
+  "false_positive_rate" = false_positive_rates
+)
+
+discrete_roc_plot <- ggplot(
+  data = tpr_fpr_for_thresholds,
+  aes(x = false_positive_rate, y = true_positive_rate, color = threshold)) +
+  labs(x = "False positive rate (1 - Specificity)", y = "True positive rate (Sensitivity)") +
+  geom_point(size=2, alpha=0.8) +
+  scale_color_viridis(option = "D", direction = -1) +
+  scale_x_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
+  scale_y_continuous(expand = c(0.01,0.01), limit=c(0,1), breaks = seq(0,1,0.1)) +
+  theme_bg() +
+  theme(legend.position ="right") +
+  theme(legend.title = element_text(size = 4), 
+        legend.text = element_text(size = 4),
+        legend.key.size = unit(.4, "cm")) 
+discrete_roc_plot
+save_fig("discrete_roc_plot", output, "small")
+
+# continuous ROC on holdout with best model (Logit 3)
+
+roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout$best_logit_no_loss_pred)
+
+createRocPlot(roc_obj_holdout, "best_logit_no_loss_roc_plot_holdout")
+```
+
