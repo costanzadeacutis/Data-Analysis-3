@@ -554,7 +554,6 @@ cm3
 # PART 1.b - Predict probabilities with Random Forest
 ## RF
 
-
 ```{r}
 # Probability forest
 # Split by gini, ratio of 1's in each tree, average over trees
@@ -647,9 +646,30 @@ kable(x = rf_summary, format = "latex", booktabs=TRUE,  digits = 3, row.names = 
 
 # Create plots - this is for Fold5
 
-createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot")
-createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot")
+createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot") # best 0.16
+createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot") # 0.49, 0.77
 
+```
+### RMSE, AUC and expected loss on holdout
+
+```{r}
+# Take model to holdout and estimate RMSE, AUC and expected loss 
+
+rf_predicted_probabilities_holdout <- predict(rf_model_p, newdata = data_holdout, type = "prob")
+data_holdout$rf_p_prediction <- rf_predicted_probabilities_holdout[,"fast_growth"]
+RMSE(data_holdout$rf_p_prediction, data_holdout$fast_growth)
+
+# ROC curve on holdout
+roc_obj_holdout <- roc(data_holdout$fast_growth, data_holdout[, "rf_p_prediction", drop=TRUE])
+
+# AUC
+as.numeric(roc_obj_holdout$auc)
+
+# Get expected loss on holdout with optimal threshold
+holdout_treshold <- coords(roc_obj_holdout, x = best_tresholds[["rf_p"]] , input= "threshold",
+                           ret="all", transpose = FALSE)
+expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/length(data_holdout$fast_growth)
+expected_loss_holdout
 ```
 
 
