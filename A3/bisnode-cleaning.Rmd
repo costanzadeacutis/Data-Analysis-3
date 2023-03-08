@@ -1,5 +1,5 @@
 ---
-title: "A3prova"
+title: "A3-cleaning"
 author: "costanzadeacutis"
 date: "2023-02-24"
 output: 
@@ -37,7 +37,7 @@ source("~/subdirectory/Assignment3/A3/A3/theme_bg.R")
 source("~/subdirectory/Assignment3/A3/A3/functions.R")
 
 data_in <- "~/subdirectory/Assignment3/A3/A3"
-data_out <- "~/subdirectory/Assignment3/A3/A3"
+data_out <- "~/subdirectory/Assignment3/A3/A3/"
 output <- "~/subdirectory/Assignment3/A3/A3/output/"
 create_output_if_doesnt_exist(output)
 
