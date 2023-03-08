@@ -1,0 +1,63 @@
+---
+title: "A3-analysis"
+author: "costanzadeacutis"
+date: "2023-02-24"
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+```{r}
+rm(list=ls())
+
+# Import libraries
+library(haven)
+library(glmnet)
+library(purrr)
+library(margins)
+library(skimr)
+library(kableExtra)
+library(Hmisc)
+library(cowplot)
+library(gmodels) 
+library(lspline)
+library(sandwich)
+library(modelsummary)
+
+library(rattle)
+library(caret)
+library(pROC)
+library(ranger)
+library(rpart)
+library(partykit)
+library(rpart.plot)
+library(viridis)
+
+
+# load theme and functions
+source("~/subdirectory/Assignment3/A3/A3/theme_bg.R") 
+source("~/subdirectory/Assignment3/A3/A3/functions.R")
+options(digits = 3) 
+
+data_in <- "~/subdirectory/Assignment3/A3/A3"
+data_out <- "~/subdirectory/Assignment3/A3/A3/"
+output <- "~/subdirectory/Assignment3/A3/A3/output/"
+create_output_if_doesnt_exist(output)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# A3 ANALYSIS
+
+## Load data
+
+```{r}
+# Use R format so it keeps factor definitions
+data <- read_rds(paste(data_out,"bisnode_firms_clean.rds", sep = "/"))
+
+#summary
+#datasummary_skim(data, type='numeric', histogram = TRUE)
+#datasummary_skim(data, type="categorical")
+```
+
