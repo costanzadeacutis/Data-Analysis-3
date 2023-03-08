@@ -315,6 +315,7 @@ kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.name
       linesep = "", col.names = c("Number of predictors","CV RMSE","CV AUC")) %>%
   cat(.,file= paste0(output, "logit_summary1.tex"))
 ```
+
 ### Bring best model to holdout
 Picked model X3
 Calculate RMSE on holdout
@@ -705,3 +706,27 @@ fn <- sum(data_holdout$rf_f_prediction_class == "no_fast_growth" & data_holdout$
 (fp*FP + fn*FN)/length(data_holdout$fast_growth)
 
 ```
+
+
+```{r}
+# Summary results   
+
+nvars[["rf_p"]] <- length(rfvars)
+
+summary_results <- data.frame("Number of predictors" = unlist(nvars),
+                              "CV RMSE" = unlist(CV_RMSE),
+                              "CV AUC" = unlist(CV_AUC),
+                              "CV threshold" = unlist(best_tresholds),
+                              "CV expected Loss" = unlist(expected_loss))
+
+model_names <- c("Logit X1", "Logit X4",
+                 "Logit LASSO","RF probability")
+summary_results <- summary_results %>%
+  filter(rownames(.) %in% c("X1", "X4", "LASSO", "rf_p"))
+rownames(summary_results) <- model_names
+
+kable(x = summary_results, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Number of predictors", "CV RMSE", "CV AUC",
+                                  "CV threshold", "CV expected Loss")) %>%
+  cat(.,file= paste0(output, "summary_results.tex"))
+`
