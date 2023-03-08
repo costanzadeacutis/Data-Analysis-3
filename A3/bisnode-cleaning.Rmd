@@ -128,7 +128,7 @@ ln_labor_avg_graph
 ```
 
 #### Target variable
-I construct the annual growth rate variable for the labor_avg. I look at quantiles and I consider as fast growing those firms with growth above the 90th percentile (fast_growth is the target variable and it is per year).
+I construct the annual growth rate variable for the labor_avg. I look at quantiles and I consider as fast growing those firms with growth above the 80th percentile (fast_growth is the target variable and it is per year).
 
 ```{r}
 #define target
@@ -139,12 +139,14 @@ data <- data %>%
   mutate(growth_labor = c(NA,diff(labor_avg))/lag(labor_avg, 1))
 
 Hmisc::describe(data$growth_labor)
+growth_labor_80th <- quantile(data$growth_labor, 0.8, na.rm=TRUE)
+growth_labor_80th 
 
 #target
 data <- data %>%
   group_by(comp_id) %>%
-  mutate(fast_growth = ifelse(growth_labor > 0.42105, 1, 0))
-#above the 90th percentile
+  mutate(fast_growth = ifelse(growth_labor > growth_labor_80th, 1, 0))
+#above the 80th percentile
 Hmisc::describe(data$fast_growth)
 
 ```
