@@ -177,5 +177,22 @@ kable(x = sum_table2, format = "latex", digits = 3,
 
 ```
 
+## Set up 
+Separate training (80%) and holdout sets (20%)
 
+```{r}
 
+set.seed(13505)
+
+train_indices <- as.integer(createDataPartition(data$fast_growth, p = 0.8, list = FALSE))
+data_train <- data[train_indices, ]
+data_holdout <- data[-train_indices, ]
+
+dim(data_train)
+dim(data_holdout)
+
+Hmisc::describe(data$fast_growth_f)
+Hmisc::describe(data_train$fast_growth_f)
+Hmisc::describe(data_holdout
+                $fast_growth_f)
+```
