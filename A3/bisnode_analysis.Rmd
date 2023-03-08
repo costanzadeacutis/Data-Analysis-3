@@ -51,6 +51,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # A3 ANALYSIS
 
 ## Load data
+Upload cleaned data
 
 ```{r}
 # Use R format so it keeps factor definitions
@@ -87,6 +88,7 @@ firm <- c("age", "age2", "new", "ind2_cat", "m_region_loc", "urban_m")
 ```
 
 ### Interactions, set of regressors for logit and LASSO, random forest variables
+I created the sets of interactions to be used in logit and LASSO. Moreover, I create the sets of regressors for logit models X1, X2, X3, X4, X5, for logit LASSO model, and for Random Forest.
 
 ```{r}
 # interactions for logit, LASSO
@@ -178,7 +180,7 @@ kable(x = sum_table2, format = "latex", digits = 3,
 ```
 
 ## Set up 
-Separate training (80%) and holdout sets (20%)
+I separate training (80%) and holdout sets (20%), and I look at the factor variable for fast growing firms in each dataset.
 
 ```{r}
 
@@ -265,6 +267,25 @@ write.csv(lasso_coeffs, paste0(output, "lasso_logit_coeffs.csv"))
 CV_RMSE_folds[["LASSO"]] <- logit_lasso_model$resample[,c("Resample", "RMSE")]
 
 ```
+
+## Best model
+
+```{r}
+# 6 models, (5 logit and the logit lasso). For each I have a 5-CV RMSE and AUC.
+# Find preferred model based on that
+
+nvars <- lapply(logit_models, FUN = function(x) length(x$coefnames))
+nvars[["LASSO"]] <- sum(lasso_coeffs != 0)
+
+logit_summary1 <- data.frame("Number of predictors" = unlist(nvars),
+                             "CV RMSE" = unlist(CV_RMSE),
+                             "CV AUC" = unlist(CV_AUC))
+
+kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
+      linesep = "", col.names = c("Number of predictors","CV RMSE","CV AUC")) %>%
+  cat(.,file= paste0(output, "logit_summary1.tex"))
+```
+
 
 
 # PART 2 - Classification with loss function
@@ -436,6 +457,9 @@ best_min_node_size <- rf_model_p$bestTune$min.node.size
 # Get average (ie over the folds) RMSE and AUC ------------------------------------
 CV_RMSE_folds[["rf_p"]] <- rf_model_p$resample[,c("Resample", "RMSE")]
 
+# Draw ROC Curve and calculate AUC for each folds
+CV_AUC_folds <- list()
+
 auc <- list()
 for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
   cv_fold <-
@@ -447,6 +471,11 @@ for (fold in c("Fold1", "Fold2", "Fold3", "Fold4", "Fold5")) {
 }
 CV_AUC_folds[["rf_p"]] <- data.frame("Resample" = names(auc),
                                          "AUC" = unlist(auc))
+
+# For each model: average RMSE and average AUC for models
+
+CV_RMSE <- list()
+CV_AUC <- list()
 
 CV_RMSE[["rf_p"]] <- mean(CV_RMSE_folds[["rf_p"]]$RMSE)
 CV_AUC[["rf_p"]] <- mean(CV_AUC_folds[["rf_p"]]$AUC)
@@ -493,6 +522,7 @@ createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot") # best 0.16
 createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot") # 0.49, 0.77
 
 ```
+
 ### RMSE, AUC and expected loss on holdout
 
 ```{r}
@@ -592,8 +622,6 @@ RMSE indicates X3 as the best, AUC indicates X4; I would choose X3 because less 
 
 ```{r, warning=FALSE}
 # Draw ROC Curve and calculate AUC for each folds
-CV_AUC_folds <- list()
-
 for (model_name in names(logit_models)) {
 
   auc <- list()
@@ -613,28 +641,13 @@ for (model_name in names(logit_models)) {
 
 # For each model: average RMSE and average AUC for models
 
-CV_RMSE <- list()
-CV_AUC <- list()
-
 for (model_name in names(logit_models)) {
   CV_RMSE[[model_name]] <- mean(CV_RMSE_folds[[model_name]]$RMSE)
   CV_AUC[[model_name]] <- mean(CV_AUC_folds[[model_name]]$AUC)
 }
 
-# 6 models, (5 logit and the logit lasso). For each I have a 5-CV RMSE and AUC.
-# Find preferred model based on that
-
-nvars <- lapply(logit_models, FUN = function(x) length(x$coefnames))
-nvars[["LASSO"]] <- sum(lasso_coeffs != 0)
-
-logit_summary1 <- data.frame("Number of predictors" = unlist(nvars),
-                             "CV RMSE" = unlist(CV_RMSE),
-                             "CV AUC" = unlist(CV_AUC))
-
-kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.names = TRUE,
-      linesep = "", col.names = c("Number of predictors","CV RMSE","CV AUC")) %>%
-  cat(.,file= paste0(output, "logit_summary1.tex"))
 ```
+
 ### Bring best model to holdout
 Picked model X3
 Calculate RMSE on holdout
