@@ -62,3 +62,19 @@ data <- data %>%
   filter(year >= 2010,
          year <= 2015)
 ```
+
+## Label engineering
+I add the missing year and company id combinations; I also identify the companies that are "alive", i.e. sales greater than 0 and no missing value for sales 
+
+```{r}
+# add all missing year and comp_id combinations -
+# originally missing combinations will have NAs in all other columns
+data <- data %>%
+  complete(year, comp_id)
+
+# generate status_alive; if sales larger than zero and not-NA, then firm is alive
+data  <- data %>%
+  mutate(status_alive = sales > 0 & !is.na(sales) %>%
+           as.numeric(.))
+
+```
