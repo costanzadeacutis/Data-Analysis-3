@@ -672,4 +672,36 @@ expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/lengt
 expected_loss_holdout
 ```
 
+# PART 2.c - Classification forest
 
+
+```{r}
+# Classification forest
+# Split by Gini, majority vote in each tree, majority vote over trees
+
+# Show expected loss with classification RF and default majority voting to compare
+
+train_control <- trainControl(
+  method = "cv",
+  n = 5
+)
+train_control$verboseIter <- TRUE
+
+set.seed(13505)
+rf_model_f <- train(
+  formula(paste0("fast_growth_f ~ ", paste0(rfvars , collapse = " + "))),
+  method = "ranger",
+  data = data_train,
+  tuneGrid = tune_grid,
+  trControl = train_control
+)
+
+data_train$rf_f_prediction_class <-  predict(rf_model_f,type = "raw")
+data_holdout$rf_f_prediction_class <- predict(rf_model_f, newdata = data_holdout, type = "raw")
+
+#We use predicted classes to calculate expected loss based on our loss fn
+fp <- sum(data_holdout$rf_f_prediction_class == "fast_growth" & data_holdout$fast_growth_f == "no_fast_growth")
+fn <- sum(data_holdout$rf_f_prediction_class == "no_fast_growth" & data_holdout$fast_growth_f == "fast_growth")
+(fp*FP + fn*FN)/length(data_holdout$fast_growth)
+
+```
