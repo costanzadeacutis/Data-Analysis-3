@@ -100,7 +100,7 @@ In the following section, I construct 6 different models where the target variab
 - Logit X4 (75): Logit X3 + financial var 2 + fin var 3 + human resource + quality var
 - Logit X5 (142): Logit X4 + interactions
 - Logit LASSO: same specification as Logit X5
-Moreover, I will perform also Random Forest: log sales, growth sales + raw var + hr + firm characteristics + quality var
+Moreover, I will perform also Random Forest based on the benchmark model identified among those listed above, based on RMSE, AUC, and lowest expected loss (see PART 1.b)
 
 ```{r}
 # interactions for logit, LASSO
@@ -120,10 +120,6 @@ X5 <- c("sales_mil_log", "sales_mil_log_sq", firm, engvar, engvar2, engvar3, d1,
 
 # for LASSO
 logitvars <- c("sales_mil_log", "sales_mil_log_sq", engvar, engvar2, engvar3, d1, hr, firm, qualityvars, interactions1, interactions2)
-
-# for RF (no interactions, no modified features)
-rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, hr, firm, qualityvars)
-
 ```
 
 ## Set up 
@@ -510,9 +506,18 @@ cm3
 
 
 # PART 1.b - Predict probabilities with Random Forest
-## 
+## CV Random forest
+I build a probability random forest model to predict probabilities based on the benchmark model Logit X3, but no feature engineering (random forest should approximate principal non-linearities and interactions). 
+The parameters for the RF are 
+- number of bootstrap samples (500)
+- number of variables considered in each split (decorrelation - square root of total number of variables - try 4 5 6)
+- minimum number of observations in terminal nodes of each tree (stopping rule - 5 10)
+and I use a 5-fold CV with Gini impurity index, which is the same as using MSE to find the best fit.
 
 ```{r}
+# same as X3 but no interactions, no modified features
+rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, firm)
+
 # Probability forest
 # Split by gini, ratio of 1's in each tree, average over trees
 
@@ -528,7 +533,7 @@ train_control <- trainControl(
 train_control$verboseIter <- TRUE
 
 tune_grid <- expand.grid(
-  .mtry = c(5, 6, 7),
+  .mtry = c(4, 5, 6),
   .splitrule = "gini",
   .min.node.size = c(10, 15)
 )
@@ -604,8 +609,8 @@ kable(x = rf_summary, format = "latex", booktabs=TRUE,  digits = 3, row.names = 
 
 # Create plots - this is for Fold5
 
-createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot") # best 0.16
-createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot") # 0.49, 0.77
+createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot") 
+createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot") 
 
 ```
 ### RMSE, AUC and expected loss on holdout
