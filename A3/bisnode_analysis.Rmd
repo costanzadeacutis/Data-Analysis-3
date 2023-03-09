@@ -642,6 +642,14 @@ holdout_treshold <- coords(roc_obj_holdout, x = best_tresholds[["rf_p"]] , input
                            ret="all", transpose = FALSE)
 expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/length(data_holdout$fast_growth)
 expected_loss_holdout
+
+# Confusion table on holdout with optimal threshold
+holdout_prediction_rf <-
+  ifelse(data_holdout$rf_p_prediction < holdout_treshold$threshold, "no_fast_growth", "fast_growth") %>%
+  factor(levels = c("no_fast_growth", "fast_growth"))
+cm_object4 <- confusionMatrix(holdout_prediction_rf,data_holdout$fast_growth_f)
+cm4 <- cm_object4$table
+cm4
 ```
 # Summary results
 I can compare the Logit models, Logit LASSO, and Random Forest in predicting probabilities and classifying observations. Random forest outperforms logits and LASSO in predicting, while it performs similarly to Logit X3 in classifying. Logit X1 is the worst in predicting, while Logit LASSO has the lowest peformance in classifying. The optimal threshold are all quite close to the one suggested by the formula.
