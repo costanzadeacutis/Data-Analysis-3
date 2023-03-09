@@ -143,9 +143,10 @@ growth_labor_80th <- quantile(data$growth_labor, 0.8, na.rm=TRUE)
 growth_labor_80th 
 
 #target
+#fast growth in one year
 data <- data %>%
   group_by(comp_id) %>%
-  mutate(fast_growth = ifelse(growth_labor > growth_labor_80th, 1, 0))
+  mutate(fast_growth = ifelse(lead(growth_labor,1) > growth_labor_80th, 1, 0))
 #above the 80th percentile
 Hmisc::describe(data$fast_growth)
 
@@ -186,7 +187,6 @@ I retain observations for 2013 for firms that are alive, and that have sales bet
 
 ```{r}
 # look at cross section
-#growth based on (2013-2012)/2012
 data <- data %>%
   filter((year==2013) & (status_alive==1))%>%
   # look at firms below 10m euro revenues and above 1000 euros
@@ -424,3 +424,4 @@ save_fig("graph_4", output, "small")
 write_csv(data,paste0(data_out,"bisnode_firms_clean.csv"))
 write_rds(data,paste0(data_out,"bisnode_firms_clean.rds"))
 ```
+
