@@ -355,7 +355,7 @@ kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.name
 ```
 
 ### Bring best model to holdout
-After picking Logit X3 as the best model, I bring this model to the holdout set and I calculate RMSE on this subset of the data. The model performs on the holdout as it performs in the training set.
+After picking Logit X3 as the best model, I bring this model to the holdout set and I calculate RMSE on this subset of the data. The model performs on the holdout as it performs in the training set (RMSE = 0.383).
 
 ```{r}
 # Take best model and estimate RMSE on holdout 
@@ -513,6 +513,7 @@ The parameters for the RF are
 - number of variables considered in each split (decorrelation - square root of total number of variables - try 4 5 6)
 - minimum number of observations in terminal nodes of each tree (stopping rule - 5 10)
 and I use a 5-fold CV with Gini impurity index, which is the same as using MSE to find the best fit.
+The model outperforms Logit X3, with a cross validated RMSE of 0.381 and AUC of 0.705.
 
 ```{r}
 # same as X3 but no interactions, no modified features
@@ -570,7 +571,12 @@ CV_AUC_folds[["rf_p"]] <- data.frame("Resample" = names(auc),
 
 CV_RMSE[["rf_p"]] <- mean(CV_RMSE_folds[["rf_p"]]$RMSE)
 CV_AUC[["rf_p"]] <- mean(CV_AUC_folds[["rf_p"]]$AUC)
+```
+# PART 2.b - Use probability forest for classification
+I use the predicted probabilities to find the optimal threshold by cross-validation and make the classification. 
+The average CV expected loss is 0.199, as for the best logit (Logit X3).
 
+```{r}
 # Now use loss function and search for best thresholds and expected loss over folds
 best_tresholds_cv <- list()
 expected_loss_cv <- list()
@@ -613,7 +619,10 @@ createLossPlot(roc_obj, best_treshold, "rf_p_loss_plot")
 createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot") 
 
 ```
+
+
 ### RMSE, AUC and expected loss on holdout
+I re-estimate the model to do predictions on the holdout set. The resulting RMSE is 0.384 and AUC is 0.701. The expected loss is 0.206, worse than the Logit X3 (0.205).
 
 ```{r}
 # Take model to holdout and estimate RMSE, AUC and expected loss 
@@ -634,45 +643,10 @@ holdout_treshold <- coords(roc_obj_holdout, x = best_tresholds[["rf_p"]] , input
 expected_loss_holdout <- (holdout_treshold$fp*FP + holdout_treshold$fn*FN)/length(data_holdout$fast_growth)
 expected_loss_holdout
 ```
-
-# PART 2.b - Classification forest
-
-
-```{r}
-# Classification forest
-# Split by Gini, majority vote in each tree, majority vote over trees
-
-# Show expected loss with classification RF and default majority voting to compare
-
-train_control <- trainControl(
-  method = "cv",
-  n = 5
-)
-train_control$verboseIter <- TRUE
-
-set.seed(13505)
-rf_model_f <- train(
-  formula(paste0("fast_growth_f ~ ", paste0(rfvars , collapse = " + "))),
-  method = "ranger",
-  data = data_train,
-  tuneGrid = tune_grid,
-  trControl = train_control
-)
-
-data_train$rf_f_prediction_class <-  predict(rf_model_f,type = "raw")
-data_holdout$rf_f_prediction_class <- predict(rf_model_f, newdata = data_holdout, type = "raw")
-
-#We use predicted classes to calculate expected loss based on our loss fn
-fp <- sum(data_holdout$rf_f_prediction_class == "fast_growth" & data_holdout$fast_growth_f == "no_fast_growth")
-fn <- sum(data_holdout$rf_f_prediction_class == "no_fast_growth" & data_holdout$fast_growth_f == "fast_growth")
-(fp*FP + fn*FN)/length(data_holdout$fast_growth)
-
-```
-
+# Summary results
 
 ```{r}
 # Summary results   
-
 nvars[["rf_p"]] <- length(rfvars)
 
 summary_results <- data.frame("Number of predictors" = unlist(nvars),
@@ -692,3 +666,4 @@ kable(x = summary_results, format = "latex", booktabs=TRUE,  digits = 3, row.nam
                                   "CV threshold", "CV expected Loss")) %>%
   cat(.,file= paste0(output, "summary_results.tex"))
 ```
+
