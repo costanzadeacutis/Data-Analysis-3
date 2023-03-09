@@ -182,7 +182,7 @@ data <- data %>%
 ```
 
 ## Cross section
-I retain observations for 2013 for firms that are alive, and that have sales between 1000 and 10m euros. Moreover, I remove those firms that have missing values for fast_growth (these are the new firms that do not have employment data for 2012).
+I retain observations for 2013 for firms that are alive, and that have sales between 1000 (seem non-operational) and 10m euros, hence focusing on SME sector. Moreover, I remove those firms that have missing values for fast_growth (these are the new firms that do not have employment data for 2012).
 
 ```{r}
 # look at cross section
@@ -201,6 +201,8 @@ data <- data %>%
 ```
 
 ## Feature engineering 
+The  variables can be divided into 4 groups: size, management, financial variables, and other characteristics.
+
 ### Industry and Firms' characteristics
 I change some industry category codes and define some additional firm characteristics: squared age, foreign management, gender of the CEO, firm HQ location.
 
@@ -228,8 +230,8 @@ data <- data %>%
 
 
 ### Financial variables
-I look at financial variables: negative values of assets are changed to 0 (because they cannot be negative); I create total_asset variable which includes intangible, current, and fixed assets; I also create ratios for these financial variables. 
-Moreover, I create flags (for errors) and winsorizing tails (for variables that are mostly between -1 and 1).
+I look at financial variables: negative values of assets are changed to 0 (because they cannot be negative); I create total_asset variable which includes intangible, current, and fixed assets; I also create ratios for these financial variables, to be able to find extreme values. 
+Moreover, I create flags (for errors) and winsorizing tails. The latter are used to capture extreme values. Finally, I add also quadratic terms to capture non-linearities and a flag for 0 values, which could signal very low activity.
 
 ```{r, warning=FALSE}
 # assets can't be negative. Change them to 0 and add a flag.
