@@ -145,69 +145,6 @@ Hmisc::describe(data_holdout
                 $fast_growth_f)
 ```
 
-### Important patterns
-I look at patterns by displaying coefficients and marginal differences: I fit OLS, GLM models X1, X2, and X4 and compute average marginal effects
-
-```{r, warning=FALSE}
-# Simplest model X1
-ols_modelx1 <- lm(formula(paste0("fast_growth ~", paste0(X1, collapse = " + "))),
-                data = data)
-summary(ols_modelx1)
-
-glm_modelx1 <- glm(formula(paste0("fast_growth ~", paste0(X1, collapse = " + "))),
-                   data = data, family = "binomial")
-summary(glm_modelx1)
-
-
-# Model X2
-glm_modelx2 <- glm(formula(paste0("fast_growth ~", paste0(X2, collapse = " + "))),
-                 data = data, family = "binomial")
-summary(glm_modelx2)
-
-#calculate average marginal effects (dy/dx) for logit
-mx2 <- margins(glm_modelx2)
-
-sum_table <- summary(glm_modelx2) %>%
-  coef() %>%
-  as.data.frame() %>%
-  select(Estimate) %>%
-  mutate(factor = row.names(.)) %>%
-  merge(summary(mx2)[,c("factor","AME")])
-
-kable(x = sum_table, format = "latex", digits = 3,
-      col.names = c("Variable", "Coefficient", "dx/dy"),
-      caption = "Average Marginal Effects (dy/dx) for Logit Model") %>%
-  cat(.,file= paste0(output,"AME_logit_X2.tex"))
-
-
-# baseline model is X4 (all vars, but no interactions)
-
-ols_model <- lm(formula(paste0("fast_growth ~", paste0(X4, collapse = " + "))),
-                data = data)
-summary(ols_model)
-
-glm_model <- glm(formula(paste0("fast_growth ~", paste0(X4, collapse = " + "))),
-                 data = data, family = "binomial")
-summary(glm_model)
-
-#calculate average marginal effects (dy/dx) for logit
-# vce="none" makes it run much faster, here we do not need variances
-
-m <- margins(glm_model, vce = "none")
-
-sum_table2 <- summary(glm_model) %>%
-  coef() %>%
-  as.data.frame() %>%
-  select(Estimate, `Std. Error`) %>%
-  mutate(factor = row.names(.)) %>%
-  merge(summary(m)[,c("factor","AME")])
-
-kable(x = sum_table2, format = "latex", digits = 3,
-      col.names = c("Variable", "Coefficient", "SE", "dx/dy"),
-      caption = "Average Marginal Effects (dy/dx) for Logit Model") %>%
-  cat(.,file= paste0(output,"AME_logit_X4.tex"))
-```
-
 
 # PART 1.a - Predict probabilities with Logit and LASSO
 ## Logit and Logit Lasso
