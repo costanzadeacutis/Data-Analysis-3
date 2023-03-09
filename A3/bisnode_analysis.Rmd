@@ -379,7 +379,7 @@ FN = predict no fast growth and instead fast growing -> 1000
 FP = predict fast growth but instead non-fast-growing -> 2000
 With the loss function, I can find the optimal threshold for classification, i.e. the threshold that delivers the lowest expected loss from the classification.
 Under ideal circumstances, the optimal threshold can be calculated by the formula
-loss(FP)/(loss(FP) +loss(FN)), which in this case would be equal to 2/3=0.667. This would be true if the prediction model I chose, i.e. Logit X3, were the best possible prediction model. Therefore, I resort to the algorithm to find the optimal threshold via cross-validation.
+loss(FP)/(loss(FP) + loss(FN)), which in this case would be equal to 2/3=0.667. This would be true if the prediction model I chose, i.e. Logit X3, were the best possible prediction model. Therefore, I resort to the algorithm to find the optimal threshold via cross-validation. The resulting selected threshold for Logit X3 is 0.628, with CV expected loss 0.199, which is the lowest on average.
 
 ```{r, warning=FALSE}
 # Introduce loss function
@@ -442,6 +442,11 @@ kable(x = logit_summary2, format = "latex", booktabs=TRUE,  digits = 3, row.name
 ```
 
 ### Plots
+I report the plots on the 5th fold of the CV search algorithm of 
+- the expected loss and optimal threshold 
+- the ROC curves
+for each model
+
 ```{r}
 # Create plots based on Fold5 in CV 
 
@@ -459,7 +464,8 @@ for (model_name in names(logit_cv_rocs)) {
 
 
 ### Best model
-Pick best based on average expected loss, and bring it to holdout
+I pick best based on average expected loss (Logit X3), and bring it to holdout
+
 ```{r}
 # Pick best model based on average expected loss 
 
@@ -468,10 +474,10 @@ best_logit_optimal_treshold <- best_tresholds[["X3"]]
 
 logit_predicted_probabilities_holdout <- predict(best_logit_with_loss, newdata = data_holdout, type = "prob")
 data_holdout[,"best_logit_with_loss_pred"] <- logit_predicted_probabilities_holdout[,"fast_growth"]
-
 ```
 
 #### ROC and expected loss
+The expected loss on the holdout set when Logit X3 is applied is equal to 0.205.
 
 ```{r}
 # ROC curve on holdout
@@ -488,6 +494,7 @@ expected_loss_holdout
 
 
 #### Confusion table
+This confusion table shows true and and missclassifications on the holdout set. It appears that the model does well in classifying correctly those firms that are non-fast-growing (99.62%), while it classifies correctly as fast-growing only 4% of the total. Given that the highest loss is registered for false positive, it is reassuring that the misclassification of non-fast growing as fast-growing is so small.
 
 ```{r}
 # Confusion table on holdout with optimal threshold
@@ -503,7 +510,7 @@ cm3
 
 
 # PART 1.b - Predict probabilities with Random Forest
-## RF
+## 
 
 ```{r}
 # Probability forest
