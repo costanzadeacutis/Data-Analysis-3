@@ -324,7 +324,7 @@ data <- data %>%
 ```
 
 ### Factor target
-I create a factor for the target variable fast_growth: there are 11229 non-fast-growing firms and 3694 fast-growing
+I create a factor for the target variable fast_growth: there are 12370 non-fast-growing firms and 3080 fast-growing
 
 ```{r}
 data <- data %>%
