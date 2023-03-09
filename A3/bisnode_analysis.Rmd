@@ -49,9 +49,10 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # A3 ANALYSIS
+This analysis aims at predicting the probability of a firm being fast-growing, and at finding the classification that delivers the lowest expected loss, given the loss function.
 
 ## Load data
-Load cleaned data 
+Load cleaned data: 13404 observations, 10673 non-fast-growing and 2731 fast-growing firms.
 
 ```{r}
 # Use R format so it keeps factor definitions
@@ -127,8 +128,8 @@ rfvars  <-  c("sales_mil", "d1_sales_mil_log", rawvars, hr, firm, qualityvars)
 
 ## Set up 
 I randomly create:
-- Train set (data_work, 80% of the total data)
-- Holdout set (data_holdout, 20% of the total data)
+- Train set (data_work, 80% of the total data): 10724 observations, 8548 non-fast-growing and 2176 fast-growing firms
+- Holdout set (data_holdout, 20% of the total data): 2680 observations, 2125 non-fast and 555 fast-growing firms.
 Then, I look at the target variable in each dataset.
 
 ```{r}
@@ -309,16 +310,15 @@ RMSE(data_holdout[, "best_logit_no_loss_pred", drop=TRUE], data_holdout$fast_gro
 
 # PART 2.a - Classification with loss function
 ## Classification Logit and Logit LASSO
-Loss function
-Aim is to find fast-growing firms for investment decisions: loss in terms of returns is far greater than the cost in investment
-FN = predict no fast growth and instead fast growing -> 5 000
-FP = ... -> 1 000
+The aim of this analysis is to find fast-growing firms for investment decisions. The fixed cost of investing in firms is 5000 euros. If the firm is fast-growing, the return is 1000 euros. Thus, if the firm is predicted to be fast-growing but it actually is not, investing in it would mean loosing 5000
+FN = predict no fast growth and instead fast growing -> 1000
+FP = predict fast growth but instead non-fast-growing -> 5000
 
 ```{r, warning=FALSE}
 # Introduce loss function
 # relative cost of of a false negative classification (as compared with a false positive classification)
-FP=1
-FN=5
+FP=5
+FN=1
 cost = FN/FP
 # the prevalence, or the proportion of cases in the population (n.cases/(n.controls+n.cases))
 prevelance = sum(data_train$fast_growth)/length(data_train$fast_growth)
