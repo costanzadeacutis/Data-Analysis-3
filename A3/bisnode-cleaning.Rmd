@@ -418,9 +418,11 @@ save_fig("graph_4", output, "small")
 ```
 
 ## Save data
-
+Number of observations: 13758
 ```{r}
 #datasummary_skim(data, type="numeric")
+
+table(data$fast_growth_f)
 
 write_csv(data,paste0(data_out,"bisnode_firms_clean.csv"))
 write_rds(data,paste0(data_out,"bisnode_firms_clean.rds"))
