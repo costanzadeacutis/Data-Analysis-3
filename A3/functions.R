@@ -373,9 +373,9 @@ createLossPlot <- function(r, best_coords, file_name,  myheight_small = 5.625, m
     geom_vline(xintercept = t , color = color[2] ) +
     annotate(geom = "text", x = t, y= min(all_coords$loss),
              label=paste0("best threshold: ", round(t,2)),
-             colour=color[2], angle=90, vjust = -1, hjust = -0.5, size = 7) +
+             colour=color[2], angle=90, vjust = -1, hjust = -0.5, size = 2) +
     annotate(geom = "text", x = t, y= l,
-             label= round(l, 2), hjust = -0.3, size = 7) +
+             label= round(l, 2), hjust = -0.3, size = 2) +
     theme_bg()
   save_fig(file_name, output, "small")
   
@@ -404,7 +404,7 @@ createRocPlotWithOptimal <- function(r, best_coords, file_name,  myheight_small 
     geom_point(aes(x = sp, y = se)) +
     annotate(geom = "text", x = sp, y = se,
              label = paste(round(sp, 2),round(se, 2),sep = ", "),
-             hjust = 1, vjust = -1, size = 7) +
+             hjust = 1, vjust = -1, size = 2) +
     theme_bg()
   #  + theme(axis.text.x = element_text(size=20), axis.text.y = element_text(size=20),
   #          axis.title.x = element_text(size=20), axis.title.y = element_text(size=20))
