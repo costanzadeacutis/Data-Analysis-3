@@ -128,7 +128,7 @@ ln_labor_avg_graph
 ```
 
 #### Target variable
-I construct the annual growth rate variable for the labor_avg. I look at quantiles and I consider as fast growing those firms with growth above the 80th percentile (fast_growth is the target variable and it is per year).
+I construct the annual growth rate variable for the labor_avg. I look at quantiles and I consider as fast growing those firms with growth above the 75th percentile in the next year (fast_growth is the target variable and it is per year).
 
 ```{r}
 #define target
@@ -140,15 +140,15 @@ data <- data %>%
   ungroup()
 
 Hmisc::describe(data$growth_labor)
-growth_labor_80th <- quantile(data$growth_labor, 0.8, na.rm=TRUE)
-growth_labor_80th 
+growth_labor_75th <- quantile(data$growth_labor, 0.75, na.rm=TRUE)
+growth_labor_75th 
 
 #target
-#fast growth in one year
+#fast growth in one year = growth above 75th in next year
 data <- data %>%
   group_by(comp_id) %>%
-  mutate(fast_growth = ifelse(lead(growth_labor,1) > growth_labor_80th, 1, 0))
-#above the 80th percentile
+  mutate(fast_growth = ifelse(lead(growth_labor,1) > growth_labor_75th, 1, 0))
+#above the 75th percentile
 Hmisc::describe(data$fast_growth)
 
 ```
@@ -324,7 +324,7 @@ data <- data %>%
 ```
 
 ### Factor target
-I create a factor for the target variable fast_growth: there are 12370 non-fast-growing firms and 3080 fast-growing
+I create a factor for the target variable fast_growth: there are 11656 non-fast-growing firms and 3794 fast-growing
 
 ```{r}
 data <- data %>%
