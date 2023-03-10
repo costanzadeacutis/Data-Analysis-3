@@ -52,12 +52,13 @@ knitr::opts_chunk$set(echo = TRUE)
 This analysis aims at predicting the probability of a firm being fast-growing, and at finding the classification that delivers the lowest expected loss, given the loss function.
 
 ## Load data
-Load cleaned data: 13404 observations, 10673 non-fast-growing and 2731 fast-growing firms.
+Load cleaned data: 13758 observations, 10391 non-fast-growing and 3367 fast-growing firms.
 
 ```{r}
 # Use R format so it keeps factor definitions
 data <- read_rds(paste(data_out,"bisnode_firms_clean.rds", sep = "/"))
 
+table(data$fast_growth_f)
 #summary
 #datasummary_skim(data, type='numeric', histogram = TRUE)
 #datasummary_skim(data, type="categorical")
@@ -124,8 +125,8 @@ logitvars <- c("sales_mil_log", "sales_mil_log_sq", engvar, engvar2, engvar3, d1
 
 ## Set up 
 I randomly create:
-- Train set (data_work, 80% of the total data): 10724 observations, 8548 non-fast-growing and 2176 fast-growing firms
-- Holdout set (data_holdout, 20% of the total data): 2680 observations, 2125 non-fast and 555 fast-growing firms.
+- Train set (data_work, 80% of the total data): 11007 observations, 8339 non-fast-growing and 2668 fast-growing firms
+- Holdout set (data_holdout, 20% of the total data): 2751 observations, 2052 non-fast and 699 fast-growing firms.
 Then, I look at the target variable in each dataset.
 
 ```{r}
@@ -148,9 +149,8 @@ Hmisc::describe(data_holdout
 
 # PART 1.a - Predict probabilities with Logit and LASSO
 ## Logit and Logit Lasso
-I set up a 5-fold cross-validation for model selection on the 5 logit models. Then, I look into LASSO, which is an automatic method to select variables: it shrinks coefficients towards zero of those variables that variables whose inclusion does not improve the fit of the regression. This is equivalent to removing them from the regression. I ran the LASSO algorithm with 5-fold cross-validation for selecting the optimal for the tuning parameter lambda (which gives the weight to the penalty term). The optimal lambda is  0.000464 and the suggested features to be kept are 120: LASSO removed 22 features that were included in Logit X5.
-
-From the summary table, after Logit X2, all average RMSE look very close to each other. To chose the best model among those evaluated, I look at the lowest RMSE in the test set, which corresponds to model Logit X3. While, more complex models as X4 and X5 are overfitting. Logit X3 has a lower average RMSE compared to Logit LASSO and far less predictors, thus it outperforms also LASSO.
+I set up a 5-fold cross-validation for model selection on the 5 logit models. Then, I look into LASSO, which is an automatic method to select variables: it shrinks coefficients towards zero of those variables that variables whose inclusion does not improve the fit of the regression. This is equivalent to removing them from the regression. I ran the LASSO algorithm with 5-fold cross-validation for selecting the optimal for the tuning parameter lambda (which gives the weight to the penalty term). The optimal lambda is  0.00464 and the suggested features to be kept are 43: LASSO removed 100 features that were included in Logit X5.
+With the summary table, I can compare the performance of the different models in predicting probabilities. To choose the best model among those evaluated, I look at the lowest RMSE in the test set. Among the logit models, this corresponds to Logit X3. While, more complex models as X4 and X5 are overfitting. Logit X3 has the same average RMSE as Logit LASSO, but the latter has more predictors; thus, I would keep Logit X3 as the best model.
 
 ```{r, warning=FALSE}
 # 5 fold cross-validation
@@ -243,7 +243,7 @@ kable(x = logit_summary, format = "latex", booktabs=TRUE,  digits = 3, row.names
 ```
 
 ### ROC and AUC
-First, I create the ROC curves and calculate the AUC for each fold of both Logit and Logit LASSO models. The ROC curve displays 1-specificity and sensitivity for all possible thresholds for classification (between 0 and 1) and it illustrates the non-linear trade-off between making false positive and false negative errors. The AUC is the area under the ROC curve and is used as a statistic to compare models (the larger the better). Once the AUC is calculated for each fold, I take the average and compare the models. From the table, it can be seen that the AUC, as the RMSE, points at the Logit X3 as the best model.
+First, I create the ROC curves and calculate the AUC for each fold of both Logit and Logit LASSO models. The ROC curve displays 1-specificity and sensitivity for all possible thresholds for classification (between 0 and 1) and it illustrates the non-linear trade-off between making false positive and false negative errors. The AUC is the area under the ROC curve and is used as a statistic to compare models (the larger the better). Once the AUC is calculated for each fold, I take the average and compare the models. From the table, it can be seen that the AUC points at the Logit X3 as the best model (0.642 compared to 0.627 of Logit LASSO).
 
 ```{r, warning=FALSE}
 # Draw ROC Curve and calculate AUC for each folds
@@ -292,7 +292,7 @@ kable(x = logit_summary1, format = "latex", booktabs=TRUE,  digits = 3, row.name
 ```
 
 ### Bring best model to holdout
-After picking Logit X3 as the best model, I bring this model to the holdout set and I calculate RMSE on this subset of the data. The model performs on the holdout as it performs in the training set (RMSE = 0.383).
+After picking Logit X3 as the best model, I bring this model to the holdout set and I calculate RMSE on this subset of the data. The model performs worse on the holdout than in the training set (RMSE = 0.426).
 
 ```{r}
 # Take best model and estimate RMSE on holdout 
@@ -307,18 +307,19 @@ RMSE(data_holdout[, "best_logit_no_loss_pred", drop=TRUE], data_holdout$fast_gro
 
 # PART 2.a - Classification with loss function
 ## Classification Logit and Logit LASSO
-The aim of this analysis is to find fast-growing firms for investment decisions. The fixed cost of investing in firms is 2000 euros. If the investment is done on a fast-growing firm, the return is 1000 euros, otherwise is 0. Thus, if the firm is predicted to be fast-growing but it actually is not, investing in it would mean loosing 2000.
-FN = predict no fast growth and instead fast growing -> 1000
-FP = predict fast growth but instead non-fast-growing -> 2000
+The aim of this analysis is to find fast-growing firms for investment decisions. The fixed cost of investing in firms is 4000 euros. If the investment is done on a fast-growing firm, the return is 5000 euros, otherwise is 0. Thus, if the firm is predicted to be fast-growing but it actually is not, investing in it would mean loosing 4000. If instead the firm is predicted non-fast-growing and the investment is not done,
+the profit opportunity of 1000 is lost.
+FN = predict no fast growth and instead fast growing -> 5000-4000=1000
+FP = predict fast growth but instead non-fast-growing -> 4000
 With the loss function, I can find the optimal threshold for classification, i.e. the threshold that delivers the lowest expected loss from the classification.
 Under ideal circumstances, the optimal threshold can be calculated by the formula
-loss(FP)/(loss(FP) + loss(FN)), which in this case would be equal to 2/3=0.667. This would be true if the prediction model I chose, i.e. Logit X3, were the best possible prediction model. Therefore, I resort to the algorithm to find the optimal threshold via cross-validation. The resulting selected threshold for Logit X3 is 0.628, with CV expected loss 0.199, which is the lowest on average.
+loss(FN)/(loss(FP) + loss(FN)), which in this case would be equal to 5/9 = 0.556. This would be true if the prediction model I chose, i.e. Logit X3, were the best possible prediction model. Therefore, I resort to the algorithm to find the optimal threshold via cross-validation. The resulting selected threshold for Logit X3 is 0.548, with CV expected loss 0.964; for Logit LASSO and other logit models, except for Logit X2, the resulting optimal threshold is "Inf", meaning that there is no optimal threshold and the best way to proceed would be just not to invest. The lowest average expected loss is given by Logit X2, but Logit X3 produces a very similar loss.
 
 ```{r, warning=FALSE}
 # Introduce loss function
-# relative cost of of a false negative classification (as compared with a false positive classification)
-FP=2
-FN=1
+# relative cost of a false negative classification (as compared with a false positive classification)
+FP=5
+FN=4
 cost = FN/FP
 # the prevalence, or the proportion of cases in the population (n.cases/(n.controls+n.cases))
 prevelance = sum(data_train$fast_growth)/length(data_train$fast_growth)
@@ -410,7 +411,7 @@ data_holdout[,"best_logit_with_loss_pred"] <- logit_predicted_probabilities_hold
 ```
 
 #### ROC and expected loss
-The expected loss on the holdout set when Logit X3 is applied is equal to 0.205.
+The expected loss on the holdout set when Logit X3 is applied is equal to 1.02.
 
 ```{r}
 # ROC curve on holdout
@@ -427,7 +428,7 @@ expected_loss_holdout
 
 
 #### Confusion table
-This confusion table shows true and and missclassifications on the holdout set. It appears that the model does well in classifying correctly those firms that are non-fast-growing (99.62%), while it classifies correctly as fast-growing only 4% of the total. Given that the highest loss is registered for false positive, it is reassuring that the misclassification of non-fast growing as fast-growing is so small.
+This confusion table shows true and and missclassifications on the holdout set. It appears that the model does well in classifying correctly those firms that are non-fast-growing (99.81%), while it classifies correctly as fast-growing only 0.3% of the total. Given that the highest loss is registered for false positive, it is reassuring that the misclassification of non-fast growing as fast-growing is so small. However, it is very difficult to find fast-growing firms because they are almost always classified as non-fast-growing.
 
 ```{r}
 # Confusion table on holdout with optimal threshold
@@ -450,7 +451,7 @@ The parameters for the RF are
 - number of variables considered in each split (decorrelation - square root of total number of variables - try 4 5 6)
 - minimum number of observations in terminal nodes of each tree (stopping rule - 5 10)
 and I use a 5-fold CV with Gini impurity index, which is the same as using MSE to find the best fit.
-The model outperforms Logit X3, with a cross validated RMSE of 0.381 and AUC of 0.705.
+The model is outperformed by Logit X3: the cross validated RMSE of 0.42 and AUC of 0.635.
 
 ```{r}
 # same as X3 but no interactions, no modified features
@@ -511,7 +512,7 @@ CV_AUC[["rf_p"]] <- mean(CV_AUC_folds[["rf_p"]]$AUC)
 ```
 # PART 2.b - Use probability forest for classification
 I use the predicted probabilities to find the optimal threshold by cross-validation and make the classification. 
-The average CV expected loss is 0.199, as for the best logit (Logit X3).
+The average CV expected loss is 0.958, lower than all the other models.
 
 ```{r}
 # Now use loss function and search for best thresholds and expected loss over folds
@@ -558,8 +559,9 @@ createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot")
 ```
 
 
-### RMSE, AUC and expected loss on holdout
-I re-estimate the model to do predictions on the holdout set. The resulting RMSE is 0.384 and AUC is 0.701. The expected loss is 0.206, worse than the Logit X3 (0.205).
+### Results on holdout
+I re-estimate the model to do predictions on the holdout set. The resulting RMSE is 0.425 and AUC is 0.643. The expected loss is 1.02, as the Logit X3 on the holdout.
+The confusion table shows that the model does even better in identifying correctly non-fast-growing, and even worse for fast growing firms, compared to Logit X3.
 
 ```{r}
 # Take model to holdout and estimate RMSE, AUC and expected loss 
@@ -589,7 +591,7 @@ cm4 <- cm_object4$table
 cm4
 ```
 # Summary results
-I can compare the Logit models, Logit LASSO, and Random Forest in predicting probabilities and classifying observations. Random forest outperforms logits and LASSO in predicting, while it performs similarly to Logit X3 in classifying. Logit X1 is the worst in predicting, while Logit LASSO has the lowest peformance in classifying. The optimal threshold are all quite close to the one suggested by the formula.
+I can compare the Logit models, Logit LASSO, and Random Forest in predicting probabilities and classifying observations. Logit X3 and LASSO outperform Random forest in predicting, with Logit X3 being the best model according to AUC. Instead, Random Forest performs better than the rest in classifying, with lower expected loss. 
 
 ```{r}
 # Summary results   
