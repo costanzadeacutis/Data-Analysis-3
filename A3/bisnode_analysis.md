@@ -488,7 +488,7 @@ system.time({
 
 ```
 ##    user  system elapsed 
-##   22.25    1.23   23.99
+##   23.50    1.34   25.89
 ```
 
 ```r
@@ -1587,7 +1587,7 @@ createRocPlotWithOptimal(roc_obj, best_treshold, "rf_p_roc_plot")
 
 ### Results on holdout
 I re-estimate the model to do predictions on the holdout set. The resulting RMSE is 0.425 and AUC is 0.643. The expected loss is 1.02, as the Logit X3 on the holdout.
-The confusion table shows that the model does even better in identifying correctly non-fast-growing, and even worse for fast growing firms, compared to Logit X3.
+The confusion table shows that the model does slightly better in identifying correctly fast-growing, compared to Logit X3.
 
 
 ```r
