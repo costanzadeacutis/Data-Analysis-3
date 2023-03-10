@@ -62,7 +62,7 @@ data  <- data %>%
 
 ## Constructing the Target
 ### Employment
-Ideally, to identify fast-growing firms, I would use employment: firms (with at least 5 or 10 employees, i.e. not too small) would be identified as fast-growing if their employment annualized growing rate were greater than a certain threshold (e.g. 20%). However, the variable for employment, labor_avg, expresses the monthly average employment in one year. I could look at other possible measures of growth, for example sales, but I believe fast growth of employment can better define fast-growing firms: sales could grow for one or two years just due to contingencies and non-structural growth; while, when a firm hires more employees, the expansions entails a more structural/intrinsic growth. 
+Ideally, to identify fast-growing firms, I would use employment: firms (with at least 5 or 10 employees, i.e. not too small) would be identified as fast-growing if their employment annualized growing rate were greater than a certain threshold (e.g. 20%). However, the variable for employment, labor_avg, expresses the monthly average employment in one year. I could look at other possible measures of growth, for example sales, but I believe fast growth of employment can better define fast-growing firms: sales could grow for one or two years just due to contingencies and non-structural growth; while, when a firm hires more employees, the expansion entails a more structural/intrinsic growth. 
 Moreover, the variables labor_avg is noisy (there are 121990 NA values out of 236250 total observations, and 316 0 values) but also sales is almost as noisy (72386 NA and 28864 zeros), and the lost in observations is almost the same. Therefore, I choose to proceed with employment.
 
 First, I remove the missing values from labor_avg and I drop observations where labor_avg==0.
@@ -186,7 +186,7 @@ ln_labor_avg_graph
 ![](bisnode-cleaning_files/figure-html/unnamed-chunk-2-2.png)<!-- -->
 
 #### Target variable
-I construct the annual growth rate variable for the labor_avg. I look at quantiles and I consider as fast growing those firms with growth above the 80th percentile (fast_growth is the target variable and it is per year).
+I construct the annual growth rate variable for the labor_avg. I look at quantiles and I consider as fast growing those firms with growth above the 75th percentile in the next year (fast_growth is the target variable and it is per year).
 
 
 ```r
@@ -195,7 +195,8 @@ I construct the annual growth rate variable for the labor_avg. I look at quantil
 # generate annual employment growth rate
 data <- data %>% 
   group_by(comp_id) %>%
-  mutate(growth_labor = c(NA,diff(labor_avg))/lag(labor_avg, 1))
+  mutate(growth_labor = (labor_avg - Lag(labor_avg, 1))/Lag(labor_avg, 1)) %>%
+  ungroup()
 
 Hmisc::describe(data$growth_labor)
 ```
@@ -218,28 +219,29 @@ Hmisc::describe(data$growth_labor)
 ```
 
 ```r
-growth_labor_80th <- quantile(data$growth_labor, 0.8, na.rm=TRUE)
-growth_labor_80th 
+growth_labor_75th <- quantile(data$growth_labor, 0.75, na.rm=TRUE)
+growth_labor_75th 
 ```
 
 ```
-##       80% 
-## 0.1802198
+##      75% 
+## 0.117647
 ```
 
 ```r
 #target
+#fast growth in one year = growth above 75th in next year
 data <- data %>%
   group_by(comp_id) %>%
-  mutate(fast_growth = ifelse(growth_labor > growth_labor_80th, 1, 0))
-#above the 80th percentile
+  mutate(fast_growth = ifelse(lead(growth_labor,1) > growth_labor_75th, 1, 0))
+#above the 75th percentile
 Hmisc::describe(data$fast_growth)
 ```
 
 ```
 ## data$fast_growth 
 ##        n  missing distinct     Info      Sum     Mean      Gmd 
-##    83346    30598        2     0.48    16669      0.2     0.32
+##    83346    30598        2    0.562    20836     0.25    0.375
 ```
 
 ## Sales
@@ -281,14 +283,13 @@ data <- data %>%
 ```
 
 ## Cross section
-I retain observations for 2013 for firms that are alive, and that have sales between 1000 (seem non-operational) and 10m euros, hence focusing on SME sector. Moreover, I remove those firms that have missing values for fast_growth (these are the new firms that do not have employment data for 2012).
+I retain observations for 2012 for firms that are alive, and that have sales between 1000 (seem non-operational) and 10m euros, hence focusing on SME sector. Moreover, I remove those firms that have missing values for fast_growth.
 
 
 ```r
 # look at cross section
-#growth based on (2013-2012)/2012
 data <- data %>%
-  filter((year==2013) & (status_alive==1))%>%
+  filter((year==2012) & (status_alive==1))%>%
   # look at firms below 10m euro revenues and above 1000 euros
   filter(!(sales_mil > 10)) %>%
   filter(!(sales_mil < 0.001))
@@ -300,7 +301,7 @@ Hmisc::describe(data$fast_growth)
 ```
 ## data$fast_growth 
 ##        n  missing distinct     Info      Sum     Mean      Gmd 
-##    14787     1987        2    0.485     2999   0.2028   0.3234
+##    15450     3119        2    0.556     3794   0.2456   0.3706
 ```
 
 ```r
@@ -332,7 +333,7 @@ table(data$ind2_cat)
 ```
 ## 
 ##   20   26   27   28   29   30   32   33   40   55   56   60 
-##   38  688  450 1425  212  120   98 1211  154 1466 8792  133
+##   40  716  479 1461  227  125  102 1253  150 1541 9212  144
 ```
 
 ```r
@@ -360,7 +361,7 @@ table(data$flag_asset_problem)
 ```
 ## 
 ##     0     1 
-## 14777     9
+## 15440     5
 ```
 
 ```r
@@ -376,8 +377,8 @@ summary(data$total_assets_bs)
 ```
 
 ```
-##      Min.   1st Qu.    Median      Mean   3rd Qu.      Max.      NA's 
-##         0     10434     38230    341336    152794 132514675         1
+##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max.     NA's 
+##        0     9237    33722   312084   136500 50967259        5
 ```
 
 ```r
@@ -455,7 +456,7 @@ data <- data %>%
 ```
 
 ### Factor target
-I create a factor for the target variable fast_growth: there are 11788 non-fast-growing firms and 2999 fast-growing
+I create a factor for the target variable fast_growth: there are 11656 non-fast-growing firms and 3794 fast-growing
 
 
 ```r
@@ -469,7 +470,7 @@ table(data$fast_growth_f)
 ```
 ## 
 ## no_fast_growth    fast_growth 
-##          11788           2999
+##          11656           3794
 ```
 
 ## Graphical analysis
@@ -524,19 +525,19 @@ summary(ols_s)
 ## 
 ## Residuals:
 ##     Min      1Q  Median      3Q     Max 
-## -0.2305 -0.2246 -0.2045 -0.1327  0.9893 
+## -0.2525 -0.2512 -0.2460 -0.2021  0.8043 
 ## 
 ## Coefficients:
-##                   Estimate Std. Error t value Pr(>|t|)    
-## (Intercept)       0.208044   0.006663  31.222  < 2e-16 ***
-## sales_mil_log    -0.027368   0.004626  -5.916 3.37e-09 ***
-## sales_mil_log_sq -0.008343   0.000898  -9.290  < 2e-16 ***
+##                    Estimate Std. Error t value Pr(>|t|)    
+## (Intercept)       0.2382353  0.0072563  32.831  < 2e-16 ***
+## sales_mil_log    -0.0123897  0.0049572  -2.499  0.01245 *  
+## sales_mil_log_sq -0.0026823  0.0009483  -2.828  0.00468 ** 
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
-## Residual standard error: 0.4006 on 14784 degrees of freedom
-## Multiple R-squared:  0.007698,	Adjusted R-squared:  0.007564 
-## F-statistic: 57.35 on 2 and 14784 DF,  p-value: < 2.2e-16
+## Residual standard error: 0.4304 on 15447 degrees of freedom
+## Multiple R-squared:  0.0005181,	Adjusted R-squared:  0.0003887 
+## F-statistic: 4.004 on 2 and 15447 DF,  p-value: 0.01827
 ```
 
 ```r
@@ -547,13 +548,13 @@ Hmisc::describe(data$d1_sales_mil_log) # no missing
 
 ```
 ## data$d1_sales_mil_log 
-##         n   missing  distinct      Info      Mean       Gmd       .05       .10 
-##     14787         0     12948     0.998 -0.009333     0.588   -0.9286   -0.5029 
-##       .25       .50       .75       .90       .95 
-##   -0.1457    0.0000    0.1855    0.4927    0.7904 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##    15450        0    11616    0.985 -0.01616    0.465  -0.6949  -0.4049 
+##      .25      .50      .75      .90      .95 
+##  -0.1151   0.0000   0.1127   0.3759   0.6291 
 ## 
-## lowest : -6.907755 -6.848888 -6.838761 -6.617299 -6.614533
-## highest:  6.479661  6.600800  7.037021  7.221277  9.344612
+## lowest : -6.651105 -6.606280 -6.547753 -6.465923 -6.385880
+## highest:  5.472847  5.474876  5.567004  5.930562  9.587817
 ```
 
 ```r
@@ -594,13 +595,13 @@ Hmisc::describe(data$d1_sales_mil_log)
 
 ```
 ## data$d1_sales_mil_log 
-##         n   missing  distinct      Info      Mean       Gmd       .05       .10 
-##     14787         0     12948     0.998 -0.009333     0.588   -0.9286   -0.5029 
-##       .25       .50       .75       .90       .95 
-##   -0.1457    0.0000    0.1855    0.4927    0.7904 
+##        n  missing distinct     Info     Mean      Gmd      .05      .10 
+##    15450        0    11616    0.985 -0.01616    0.465  -0.6949  -0.4049 
+##      .25      .50      .75      .90      .95 
+##  -0.1151   0.0000   0.1127   0.3759   0.6291 
 ## 
-## lowest : -6.907755 -6.848888 -6.838761 -6.617299 -6.614533
-## highest:  6.479661  6.600800  7.037021  7.221277  9.344612
+## lowest : -6.651105 -6.606280 -6.547753 -6.465923 -6.385880
+## highest:  5.472847  5.474876  5.567004  5.930562  9.587817
 ```
 
 ```r
@@ -626,11 +627,11 @@ Hmisc::describe(data$age)
 ```
 ## data$age 
 ##        n  missing distinct     Info     Mean      Gmd      .05      .10 
-##    13404        0       29    0.996    9.873    7.916        1        2 
+##    13758        0       30    0.996    9.047    7.874        1        1 
 ##      .25      .50      .75      .90      .95 
-##        3        8       16       21       22 
+##        3        8       15       20       21 
 ## 
-## lowest :  1  2  3  4  5, highest: 25 26 27 29 62
+## lowest :  0  1  2  3  4, highest: 25 26 28 29 34
 ```
 
 ```r
@@ -643,13 +644,13 @@ Hmisc::describe(data$d1_sales_mil_log_mod)
 
 ```
 ## data$d1_sales_mil_log_mod 
-##        n  missing distinct     Info     Mean      Gmd      .05      .10 
-##    13404        0    11419        1 0.008328   0.4589  -0.9651  -0.5349 
-##      .25      .50      .75      .90      .95 
-##  -0.1682   0.0068   0.2037   0.5165   0.8183 
+##         n   missing  distinct      Info      Mean       Gmd       .05       .10 
+##     13758         0     10427     0.994 -0.006452    0.3844   -0.7293   -0.4347 
+##       .25       .50       .75       .90       .95 
+##   -0.1373    0.0000    0.1333    0.3999    0.6550 
 ## 
-## lowest : -1.0000000 -0.9978795 -0.9978087 -0.9975629 -0.9973646
-## highest:  0.9953300  0.9988467  0.9992837  0.9993800  1.0000000
+## lowest : -1.0000000 -0.9996281 -0.9973432 -0.9946901 -0.9942466
+## highest:  0.9964886  0.9968737  0.9983609  0.9993198  1.0000000
 ```
 
 ```r
@@ -704,11 +705,22 @@ save_fig("graph_4", output, "small")
 ```
 
 ## Save data
-
+Number of observations: 13758
 
 ```r
 #datasummary_skim(data, type="numeric")
 
+table(data$fast_growth_f)
+```
+
+```
+## 
+## no_fast_growth    fast_growth 
+##          10391           3367
+```
+
+```r
 write_csv(data,paste0(data_out,"bisnode_firms_clean.csv"))
 write_rds(data,paste0(data_out,"bisnode_firms_clean.rds"))
 ```
+
